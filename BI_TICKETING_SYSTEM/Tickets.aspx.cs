@@ -3,6 +3,7 @@ using Oracle.ManagedDataAccess.Client;
 using System;
 using System.Configuration;
 using System.Data;
+using System.Web.ModelBinding;
 
 namespace BI_TICKETING_SYSTEM
 {
@@ -31,14 +32,50 @@ namespace BI_TICKETING_SYSTEM
         {
             using (OracleConnection conn = new OracleConnection(connString))
             {
-                string sql = "SELECT * FROM TICKETS ORDER BY CREATED_AT DESC";
+                conn.Open();
 
-                OracleDataAdapter da = new OracleDataAdapter(sql, conn);
-                DataTable dt = new DataTable();
-                da.Fill(dt);
+                string role = (Session["Role"] ?? string.Empty).ToString();
+                OracleCommand cmd = conn.CreateCommand();
 
-                gvTickets.DataSource = dt;
-                gvTickets.DataBind();
+                if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
+                {
+                    cmd.CommandText = "SELECT * FROM TICKETS ORDER BY CREATED_AT DESC";
+                }
+                else
+                {
+                    if (Session["USER_ID"] == null)
+                    {
+                        gvTickets.DataSource = null;
+                        gvTickets.DataBind();
+                        return;
+                    }
+
+                    int userId;
+                    try
+                    {
+                        userId = Convert.ToInt32(Session["USER_ID"]);
+                    }
+                    catch
+                    {
+                        gvTickets.DataSource = null;
+                        gvTickets.DataBind();
+                        return;
+                    }
+
+                    cmd.CommandText = @"SELECT * FROM TICKETS
+                                        WHERE ASSIGNED_TO_USERID = :userId
+                                        ORDER BY CREATED_AT DESC";
+                    cmd.Parameters.Add(":userId", OracleDbType.Int32).Value = userId;
+                }
+
+                using (OracleDataAdapter da = new OracleDataAdapter(cmd))
+                {
+                    DataTable dt = new DataTable();
+                    da.Fill(dt);
+
+                    gvTickets.DataSource = dt;
+                    gvTickets.DataBind();
+                }
             }
         }
 
