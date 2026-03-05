@@ -1,0 +1,593 @@
+﻿using System;
+using System.Data;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using Oracle.ManagedDataAccess.Client;
+using BI_TICKETING_SYSTEM.Helpers;
+
+namespace BI_TICKETING_SYSTEM.Pages
+{
+    public partial class Tickets : Page
+    {
+        // ===== PAGINATION =====
+        private int PageSize = 10;
+        private int CurrentPage
+        {
+            get { return ViewState["CurrentPage"] != null ? (int)ViewState["CurrentPage"] : 1; }
+            set { ViewState["CurrentPage"] = value; }
+        }
+
+        // ===== SESSION HELPERS =====
+        private string CurrentRole => Session["UserRole"]?.ToString() ?? "User";
+        private int CurrentUserID => Convert.ToInt32(Session["UserID"] ?? 0);
+        private string CurrentUserName => Session["UserName"]?.ToString() ?? "";
+
+        // ===== PAGE LOAD =====
+        protected void Page_Load(object sender, EventArgs e)
+        {
+            if (Session["UserName"] == null)
+            {
+                Response.Redirect("~/Login.aspx");
+                return;
+            }
+
+            if (!IsPostBack)
+            {
+                // Support cannot access this page
+                if (CurrentRole.ToLower() == "support")
+                {
+                    Response.Redirect("~/Default.aspx");
+                    return;
+                }
+
+                // Only Admin and User can create tickets
+                pnlCreateBtn.Visible = (CurrentRole.ToLower() != "support");
+
+                // Pre-fill create form
+                txtCreatedBy.Text = CurrentUserName;
+                txtCreatedDate.Text = DateTime.Now.ToString("MM/dd/yyyy");
+
+                LoadTickets();
+            }
+        }
+
+        // ===== LOAD TICKETS =====
+        private void LoadTickets()
+        {
+            string search = txtSearch.Text.Trim();
+            string filterStatus = ddlFilterStatus.SelectedValue;
+            string filterPriority = ddlFilterPriority.SelectedValue;
+            string role = CurrentRole.ToLower();
+            int userId = CurrentUserID;
+
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    string sql = @"
+                        SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
+                               T.CATEGORY, T.CREATED_AT,
+                               U.FULL_NAME AS CREATED_BY_NAME,
+                               A.FULL_NAME AS ASSIGNED_TO_NAME
+                        FROM BI_OJT.TICKETS T
+                        LEFT JOIN BI_OJT.USERS U ON T.CREATED_BY_USER_ID = U.USER_ID
+                        LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
+                        WHERE 1=1 ";
+
+                    // Users only see their own tickets
+                    if (role == "user")
+                        sql += " AND T.CREATED_BY_USER_ID = :userId ";
+
+                    if (!string.IsNullOrEmpty(search))
+                        sql += " AND (UPPER(T.TICKET_NUMBER) LIKE UPPER(:search) OR UPPER(T.TITLE) LIKE UPPER(:search)) ";
+
+                    if (!string.IsNullOrEmpty(filterStatus))
+                        sql += " AND UPPER(T.STATUS) = UPPER(:filterStatus) ";
+
+                    if (!string.IsNullOrEmpty(filterPriority))
+                        sql += " AND UPPER(T.PRIORITY) = UPPER(:filterPriority) ";
+
+                    sql += " ORDER BY T.CREATED_AT DESC ";
+
+                    OracleCommand cmd = new OracleCommand(sql, conn);
+
+                    if (role == "user")
+                        cmd.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
+
+                    if (!string.IsNullOrEmpty(search))
+                        cmd.Parameters.Add("search", OracleDbType.Varchar2).Value = "%" + search + "%";
+
+                    if (!string.IsNullOrEmpty(filterStatus))
+                        cmd.Parameters.Add("filterStatus", OracleDbType.Varchar2).Value = filterStatus;
+
+                    if (!string.IsNullOrEmpty(filterPriority))
+                        cmd.Parameters.Add("filterPriority", OracleDbType.Varchar2).Value = filterPriority;
+
+                    OracleDataAdapter da = new OracleDataAdapter(cmd);
+                    DataTable dt = new DataTable();
+                    da.Fill(dt);
+
+                    // Pagination
+                    int totalRecords = dt.Rows.Count;
+                    int totalPages = (int)Math.Ceiling((double)totalRecords / PageSize);
+                    if (CurrentPage > totalPages && totalPages > 0) CurrentPage = totalPages;
+
+                    int startIndex = (CurrentPage - 1) * PageSize;
+                    DataTable pagedDt = dt.Clone();
+                    for (int i = startIndex; i < Math.Min(startIndex + PageSize, totalRecords); i++)
+                        pagedDt.ImportRow(dt.Rows[i]);
+
+                    if (pagedDt.Rows.Count == 0)
+                    {
+                        pnlEmpty.Visible = true;
+                        rptTickets.Visible = false;
+                    }
+                    else
+                    {
+                        pnlEmpty.Visible = false;
+                        rptTickets.Visible = true;
+                        rptTickets.DataSource = pagedDt;
+                        rptTickets.DataBind();
+                    }
+
+                    lblPaginationInfo.Text = totalRecords == 0 ? "No records found" :
+                        $"Showing {startIndex + 1}–{Math.Min(startIndex + PageSize, totalRecords)} of {totalRecords} tickets";
+
+                    btnPrev.Enabled = CurrentPage > 1;
+                    btnNext.Enabled = CurrentPage < totalPages;
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error loading tickets: " + ex.Message);
+            }
+        }
+
+        // ===== CREATE TICKET =====
+        protected void btnCreateTicket_Click(object sender, EventArgs e)
+        {
+            if (!Page.IsValid) return;
+
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    // Generate ticket number
+                    string year = DateTime.Now.Year.ToString();
+                    OracleCommand seqCmd = new OracleCommand("SELECT BI_OJT.TICKETS_NUM_SEQ.NEXTVAL FROM DUAL", conn);
+                    decimal nextNum = Convert.ToDecimal(seqCmd.ExecuteScalar());
+                    string ticketNumber = $"TKT-{year}-{((int)nextNum).ToString("D4")}";
+
+                    // Get next ticket ID
+                    OracleCommand idCmd = new OracleCommand("SELECT BI_OJT.TICKETS_SEQ.NEXTVAL FROM DUAL", conn);
+                    decimal ticketId = Convert.ToDecimal(idCmd.ExecuteScalar());
+
+                    string sql = @"INSERT INTO BI_OJT.TICKETS 
+                        (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, 
+                         CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT)
+                        VALUES 
+                        (:ticketId, :ticketNumber, :title, :description, 'Pending Approval',
+                         :createdBy, SYSDATE, SYSDATE)";
+
+                    OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.Parameters.Add("ticketId", OracleDbType.Decimal).Value = ticketId;
+                    cmd.Parameters.Add("ticketNumber", OracleDbType.Varchar2).Value = ticketNumber;
+                    cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtTitle.Text.Trim();
+                    cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtDescription.Text.Trim();
+                    cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
+                    cmd.ExecuteNonQuery();
+
+                    UserService.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId);
+
+                    // Clear form
+                    txtTitle.Text = "";
+                    txtDescription.Text = "";
+
+                    hfShowModal.Value = "";
+                    ShowSuccess($"Ticket {ticketNumber} submitted successfully! Status: Pending Approval.");
+                    LoadTickets();
+                }
+            }
+            catch (Exception ex)
+            {
+                hfShowModal.Value = "create";
+                ShowError("Error creating ticket: " + ex.Message);
+            }
+        }
+
+        // ===== REPEATER ITEM COMMAND =====
+        protected void rptTickets_ItemCommand(object source, RepeaterCommandEventArgs e)
+        {
+            int ticketId = Convert.ToInt32(e.CommandArgument);
+
+            switch (e.CommandName)
+            {
+                case "ViewTicket":
+                    LoadTicketForView(ticketId);
+                    break;
+                case "ApproveTicket":
+                    if (CurrentRole.ToLower() == "admin")
+                        ApproveTicket(ticketId);
+                    break;
+                case "EditTicket":
+                    // ✅ admin, support, and user can all edit
+                    if (CurrentRole.ToLower() == "admin" ||
+                        CurrentRole.ToLower() == "support" ||
+                        CurrentRole.ToLower() == "user")
+                        LoadTicketForEdit(ticketId);
+                    break;
+                case "DeleteTicket":
+                    if (CurrentRole.ToLower() == "admin" || CurrentRole.ToLower() == "user")
+                        DeleteTicket(ticketId);
+                    break;
+            }
+        }
+
+        // ===== VIEW TICKET =====
+        private void LoadTicketForView(int ticketId)
+        {
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql = @"SELECT T.*, 
+                                   U.FULL_NAME AS CREATED_BY_NAME,
+                                   A.FULL_NAME AS ASSIGNED_TO_NAME
+                                   FROM BI_OJT.TICKETS T
+                                   LEFT JOIN BI_OJT.USERS U ON T.CREATED_BY_USER_ID = U.USER_ID
+                                   LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
+                                   WHERE T.TICKET_ID = :ticketId";
+
+                    OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                    OracleDataAdapter da = new OracleDataAdapter(cmd);
+                    DataTable dt = new DataTable();
+                    da.Fill(dt);
+
+                    if (dt.Rows.Count > 0)
+                    {
+                        DataRow row = dt.Rows[0];
+                        lblViewTicketNumber.Text = row["TICKET_NUMBER"].ToString();
+                        lblViewTitle.Text = row["TITLE"].ToString();
+                        lblViewDescription.Text = row["DESCRIPTION"].ToString();
+                        lblViewStatus.Text = row["STATUS"].ToString();
+                        lblViewPriority.Text = string.IsNullOrEmpty(row["PRIORITY"].ToString()) ? "Not Set" : row["PRIORITY"].ToString();
+                        lblViewCategory.Text = string.IsNullOrEmpty(row["CATEGORY"].ToString()) ? "-" : row["CATEGORY"].ToString();
+                        lblViewCreatedBy.Text = row["CREATED_BY_NAME"].ToString();
+                        lblViewCreatedDate.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
+                        lblViewAssignedTo.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString();
+
+                        hfShowModal.Value = "view";
+                        LoadTickets();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error loading ticket details: " + ex.Message);
+            }
+        }
+
+        // ===== APPROVE TICKET =====
+        private void ApproveTicket(int ticketId)
+        {
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql = @"UPDATE BI_OJT.TICKETS 
+                                   SET STATUS = 'Open', UPDATED_AT = SYSDATE 
+                                   WHERE TICKET_ID = :ticketId";
+                    OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                    cmd.ExecuteNonQuery();
+
+                    UserService.LogAction(CurrentUserID, "APPROVE_TICKET", "TICKETS", ticketId);
+                    ShowSuccess("Ticket approved successfully! Status changed to Open.");
+                    LoadTickets();
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error approving ticket: " + ex.Message);
+            }
+        }
+
+        // ===== EDIT TICKET =====
+        private void LoadTicketForEdit(int ticketId)
+        {
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql = "SELECT * FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                    OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                    OracleDataAdapter da = new OracleDataAdapter(cmd);
+                    DataTable dt = new DataTable();
+                    da.Fill(dt);
+
+                    if (dt.Rows.Count > 0)
+                    {
+                        DataRow row = dt.Rows[0];
+                        hfEditTicketId.Value = ticketId.ToString();
+                        txtEditTicketNumber.Text = row["TICKET_NUMBER"].ToString();
+                        ddlEditStatus.SelectedValue = row["STATUS"].ToString();
+
+                        if (CurrentRole.ToLower() == "admin")
+                        {
+                            // Admin sees all fields
+                            pnlEditTitle.Visible = true;
+                            pnlEditDescription.Visible = true;
+                            pnlEditPriorityCategory.Visible = true;
+                            pnlAssignTo.Visible = true;
+                            pnlUserEdit.Visible = false;
+
+                            // Hide status row for admin (already shown above)
+                            txtEditTitle.Text = row["TITLE"].ToString();
+                            txtEditDescription.Text = row["DESCRIPTION"].ToString();
+                            txtEditCategory.Text = row["CATEGORY"].ToString();
+                            ddlEditPriority.SelectedValue = row["PRIORITY"].ToString();
+
+                            LoadSupportUsers();
+                            if (row["ASSIGNED_TO_USER_ID"] != DBNull.Value)
+                            {
+                                string assignedId = row["ASSIGNED_TO_USER_ID"].ToString();
+                                if (ddlAssignTo.Items.FindByValue(assignedId) != null)
+                                    ddlAssignTo.SelectedValue = assignedId;
+                            }
+                        }
+                        else if (CurrentRole.ToLower() == "support")
+                        {
+                            // Support only sees Status
+                            pnlEditTitle.Visible = false;
+                            pnlEditDescription.Visible = false;
+                            pnlEditPriorityCategory.Visible = false;
+                            pnlAssignTo.Visible = false;
+                            pnlUserEdit.Visible = false;
+                        }
+                        else if (CurrentRole.ToLower() == "user")
+                        {
+                            // User sees Title, Description, Category only
+                            pnlEditTitle.Visible = false;
+                            pnlEditDescription.Visible = false;
+                            pnlEditPriorityCategory.Visible = false;
+                            pnlAssignTo.Visible = false;
+                            ddlEditStatus.Enabled = false;
+                            pnlUserEdit.Visible = true;
+
+                            txtUserEditTitle.Text = row["TITLE"].ToString();
+                            txtUserEditDescription.Text = row["DESCRIPTION"].ToString();
+                            txtUserEditCategory.Text = row["CATEGORY"].ToString();
+                        }
+
+                        hfShowModal.Value = "edit";
+                        LoadTickets();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error loading ticket for edit: " + ex.Message);
+            }
+        }
+
+        protected void btnSaveEdit_Click(object sender, EventArgs e)
+        {
+            if (!Page.IsValid) return;
+
+            try
+            {
+                int ticketId = Convert.ToInt32(hfEditTicketId.Value);
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql;
+                    OracleCommand cmd;
+
+                    if (CurrentRole.ToLower() == "support")
+                    {
+                        // Support can only update Status
+                        sql = @"UPDATE BI_OJT.TICKETS 
+                        SET STATUS = :status, UPDATED_AT = SYSDATE
+                        WHERE TICKET_ID = :ticketId";
+
+                        cmd = new OracleCommand(sql, conn);
+                        cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = ddlEditStatus.SelectedValue;
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                    }
+                    else if (CurrentRole.ToLower() == "user")
+                    {
+                        // User can only update Title, Description, Category
+                        sql = @"UPDATE BI_OJT.TICKETS 
+                        SET TITLE = :title,
+                            DESCRIPTION = :description,
+                            CATEGORY = :category,
+                            UPDATED_AT = SYSDATE
+                        WHERE TICKET_ID = :ticketId";
+
+                        cmd = new OracleCommand(sql, conn);
+                        cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtUserEditTitle.Text.Trim();
+                        cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtUserEditDescription.Text.Trim();
+                        cmd.Parameters.Add("category", OracleDbType.Varchar2).Value = string.IsNullOrEmpty(txtUserEditCategory.Text.Trim()) ? (object)DBNull.Value : txtUserEditCategory.Text.Trim();
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                    }
+                    else
+                    {
+                        // Admin can update everything
+                        sql = @"UPDATE BI_OJT.TICKETS 
+                        SET TITLE = :title,
+                            DESCRIPTION = :description,
+                            STATUS = :status,
+                            PRIORITY = :priority,
+                            CATEGORY = :category,
+                            ASSIGNED_TO_USER_ID = :assignedTo,
+                            UPDATED_AT = SYSDATE
+                        WHERE TICKET_ID = :ticketId";
+
+                        cmd = new OracleCommand(sql, conn);
+                        cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtEditTitle.Text.Trim();
+                        cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtEditDescription.Text.Trim();
+                        cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = ddlEditStatus.SelectedValue;
+                        cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value = string.IsNullOrEmpty(ddlEditPriority.SelectedValue) ? (object)DBNull.Value : ddlEditPriority.SelectedValue;
+                        cmd.Parameters.Add("category", OracleDbType.Varchar2).Value = string.IsNullOrEmpty(txtEditCategory.Text.Trim()) ? (object)DBNull.Value : txtEditCategory.Text.Trim();
+                        cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = string.IsNullOrEmpty(ddlAssignTo.SelectedValue) ? (object)DBNull.Value : Convert.ToInt32(ddlAssignTo.SelectedValue);
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                    }
+
+                    cmd.ExecuteNonQuery();
+
+                    UserService.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId);
+                    hfShowModal.Value = "";
+                    ShowSuccess("Ticket updated successfully!");
+                    LoadTickets();
+                }
+            }
+            catch (Exception ex)
+            {
+                hfShowModal.Value = "edit";
+                ShowError("Error updating ticket: " + ex.Message);
+            }
+        }
+
+        // ===== DELETE TICKET =====
+        private void DeleteTicket(int ticketId)
+        {
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql = "DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                    OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                    cmd.ExecuteNonQuery();
+
+                    UserService.LogAction(CurrentUserID, "DELETE_TICKET", "TICKETS", ticketId);
+                    ShowSuccess("Ticket deleted successfully.");
+                    LoadTickets();
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error deleting ticket: " + ex.Message);
+            }
+        }
+
+        // ===== LOAD SUPPORT USERS =====
+        private void LoadSupportUsers()
+        {
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql = @"SELECT USER_ID, FULL_NAME 
+                                   FROM BI_OJT.USERS 
+                                   WHERE UPPER(ROLE) = 'SUPPORT' 
+                                   AND UPPER(STATUS) = 'ACTIVE'
+                                   ORDER BY FULL_NAME";
+
+                    OracleCommand cmd = new OracleCommand(sql, conn);
+                    OracleDataAdapter da = new OracleDataAdapter(cmd);
+                    DataTable dt = new DataTable();
+                    da.Fill(dt);
+
+                    ddlAssignTo.Items.Clear();
+                    ddlAssignTo.Items.Add(new ListItem("-- Unassigned --", ""));
+
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        ddlAssignTo.Items.Add(new ListItem(
+                            row["FULL_NAME"].ToString(),
+                            row["USER_ID"].ToString()
+                        ));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error loading support users: " + ex.Message);
+            }
+        }
+
+        // ===== SEARCH & FILTER =====
+        protected void btnSearch_Click(object sender, EventArgs e)
+        {
+            CurrentPage = 1;
+            LoadTickets();
+        }
+
+        protected void ddlFilter_Changed(object sender, EventArgs e)
+        {
+            CurrentPage = 1;
+            LoadTickets();
+        }
+
+        // ===== PAGINATION =====
+        protected void btnPrev_Click(object sender, EventArgs e)
+        {
+            if (CurrentPage > 1) CurrentPage--;
+            LoadTickets();
+        }
+
+        protected void btnNext_Click(object sender, EventArgs e)
+        {
+            CurrentPage++;
+            LoadTickets();
+        }
+
+        // ===== BADGE HELPERS =====
+        public string GetStatusBadge(string status)
+        {
+            switch (status?.ToLower())
+            {
+                case "pending approval": return "badge-pending-approval";
+                case "open": return "badge-open";
+                case "in progress": return "badge-in-progress";
+                case "resolved": return "badge-resolved";
+                case "closed": return "badge-closed";
+                case "overdue": return "badge-overdue";
+                default: return "badge-secondary";
+            }
+        }
+
+        public string GetPriorityBadge(string priority)
+        {
+            switch (priority?.ToLower())
+            {
+                case "low": return "badge-low";
+                case "medium": return "badge-medium";
+                case "high": return "badge-high";
+                case "critical": return "badge-critical";
+                default: return "badge-not-set";
+            }
+        }
+
+        // ===== SHOW ALERTS =====
+        private void ShowSuccess(string msg)
+        {
+            hfSwalMessage.Value = msg;
+            hfSwalType.Value = "success";
+            pnlSuccess.Visible = false;
+            pnlError.Visible = false;
+        }
+
+        private void ShowError(string msg)
+        {
+            hfSwalMessage.Value = msg;
+            hfSwalType.Value = "error";
+            pnlSuccess.Visible = false;
+            pnlError.Visible = false;
+        }
+    }
+}

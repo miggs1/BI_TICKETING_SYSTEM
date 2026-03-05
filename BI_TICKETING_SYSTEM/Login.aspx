@@ -334,7 +334,7 @@
 </head>
 <body>
     <!-- Background -->
-    <div class="bg-image" style="background-image: url('Images/bg-building.png'); background-position: center center; background-size: cover; background-repeat: no-repeat;"></div>
+    <div class="bg-image" style="background-image: url('<%= ResolveUrl("~/Images/bg-building.png") %>');"></div>
     <div class="bg-overlay"></div>
 
     <!-- Government Banner -->
