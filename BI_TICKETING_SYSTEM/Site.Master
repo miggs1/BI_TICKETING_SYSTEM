@@ -37,7 +37,7 @@
                     <asp:Label ID="lblUsername" runat="server" Text="Admin User" />
                 </a>
                 <div class="dropdown-menu dropdown-menu-right shadow">
-                    <a class="dropdown-item" href="#">
+                    <a class="dropdown-item" href="~/Pages/UserProfile.aspx" runat="server">
                         <i class="fas fa-user mr-2" style="color:#001f54;"></i> Profile
                     </a>
                     <div class="dropdown-divider"></div>
