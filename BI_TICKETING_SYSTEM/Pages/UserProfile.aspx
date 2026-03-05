@@ -5,6 +5,7 @@ Inherits="BI_TICKETING_SYSTEM.Pages.UserProfile" %>
 <asp:Content ID="MainContent" ContentPlaceHolderID="MainContent" runat="server">
 
 <div class="container-fluid">
+    <br />
     <h4 class="mb-4 font-weight-bold">My Profile</h4>
 
     <!-- Success Message -->
