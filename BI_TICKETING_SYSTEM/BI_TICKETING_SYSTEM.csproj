@@ -137,6 +137,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="About.aspx" />
+    <Content Include="Assets\sitemastercss.css" />
     <Content Include="Contact.aspx" />
     <Content Include="Content\adminlte.min.css" />
     <Content Include="Content\bootstrap-grid.css" />
@@ -163,6 +164,7 @@
     <Content Include="Images\bg-building.png" />
     <Content Include="Images\bi-seal.png" />
     <Content Include="Images\ph-flag.png" />
+    <Content Include="Pages\Tickets.aspx" />
     <Content Include="Scripts\bootstrap.bundle.js" />
     <Content Include="Scripts\bootstrap.bundle.min.js" />
     <Content Include="Scripts\bootstrap.esm.js" />
@@ -193,6 +195,7 @@
     <Content Include="Content\bootstrap-grid.css.map" />
     <Content Include="TestConnection.aspx" />
     <Content Include="Login.aspx" />
+    <Content Include="DashboardHandler.ashx" />
     <None Include="Oracle.DataAccess.Common.Configuration.Section.xsd">
       <SubType>Designer</SubType>
     </None>
@@ -267,9 +270,19 @@
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
+    <Compile Include="DashboardHandler.ashx.cs">
+      <DependentUpon>DashboardHandler.ashx</DependentUpon>
+    </Compile>
     <Compile Include="Helpers\DatabaseHelper.cs" />
     <Compile Include="Helpers\PasswordHelper.cs" />
     <Compile Include="Helpers\UserService.cs" />
+    <Compile Include="Pages\Tickets.aspx.cs">
+      <DependentUpon>Tickets.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Pages\Tickets.aspx.designer.cs">
+      <DependentUpon>Tickets.aspx</DependentUpon>
+    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Site.Master.cs">
       <DependentUpon>Site.Master</DependentUpon>
