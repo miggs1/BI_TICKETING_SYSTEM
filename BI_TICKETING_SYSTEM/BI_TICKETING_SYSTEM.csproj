@@ -164,6 +164,7 @@
     <Content Include="Images\bg-building.png" />
     <Content Include="Images\bi-seal.png" />
     <Content Include="Images\ph-flag.png" />
+    <Content Include="Pages\AuditLogs.aspx" />
     <Content Include="Pages\UserProfile.aspx" />
     <Content Include="Pages\Tickets.aspx" />
     <Content Include="Scripts\bootstrap.bundle.js" />
@@ -274,9 +275,17 @@
     <Compile Include="DashboardHandler.ashx.cs">
       <DependentUpon>DashboardHandler.ashx</DependentUpon>
     </Compile>
+    <Compile Include="Helpers\AuditHelper.cs" />
     <Compile Include="Helpers\DatabaseHelper.cs" />
     <Compile Include="Helpers\PasswordHelper.cs" />
     <Compile Include="Helpers\UserService.cs" />
+    <Compile Include="Pages\AuditLogs.aspx.cs">
+      <DependentUpon>AuditLogs.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Pages\AuditLogs.aspx.designer.cs">
+      <DependentUpon>AuditLogs.aspx</DependentUpon>
+    </Compile>
     <Compile Include="Pages\UserProfile.aspx.cs">
       <DependentUpon>UserProfile.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>
