@@ -24,6 +24,15 @@ namespace BI_TICKETING_SYSTEM
         protected global::System.Web.UI.WebControls.Label lblTotalTickets;
 
         /// <summary>
+        /// lblTotalLabel control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Label lblTotalLabel;
+
+        /// <summary>
         /// lblResolved control.
         /// </summary>
         /// <remarks>
@@ -60,6 +69,24 @@ namespace BI_TICKETING_SYSTEM
         protected global::System.Web.UI.WebControls.Label lblWelcomeUser;
 
         /// <summary>
+        /// lblRoleBadge control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Label lblRoleBadge;
+
+        /// <summary>
+        /// lblWelcomeMessage control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Label lblWelcomeMessage;
+
+        /// <summary>
         /// lblOpenCount control.
         /// </summary>
         /// <remarks>
@@ -85,6 +112,15 @@ namespace BI_TICKETING_SYSTEM
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
         protected global::System.Web.UI.WebControls.Label lblClosedCount;
+
+        /// <summary>
+        /// pnlCreateTicketAction control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Panel pnlCreateTicketAction;
 
         /// <summary>
         /// pnlAdminActions control.
