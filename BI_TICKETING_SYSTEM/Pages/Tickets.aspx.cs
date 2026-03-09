@@ -4,6 +4,7 @@ using System.Web.UI;
 using System.Web.UI.WebControls;
 using Oracle.ManagedDataAccess.Client;
 using BI_TICKETING_SYSTEM.Helpers;
+using System.Collections.Generic;
 
 namespace BI_TICKETING_SYSTEM.Pages
 {
@@ -181,7 +182,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                     cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
                     cmd.ExecuteNonQuery();
 
-                    UserService.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId);
+                    // Fetch snapshot after create and log
+                    var newSnap = GetTicketSnapshot((int)ticketId, conn);
+                    AuditHelper.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId, null, newSnap);
 
                     // Clear form
                     txtTitle.Text = "";
@@ -282,16 +285,41 @@ namespace BI_TICKETING_SYSTEM.Pages
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
-                    string sql = @"UPDATE BI_OJT.TICKETS 
-                                   SET STATUS = 'Open', UPDATED_AT = SYSDATE 
-                                   WHERE TICKET_ID = :ticketId";
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                    cmd.ExecuteNonQuery();
+                    using (var tran = conn.BeginTransaction())
+                    {
+                        var oldSnap = GetTicketSnapshot(ticketId, conn);
 
-                    UserService.LogAction(CurrentUserID, "APPROVE_TICKET", "TICKETS", ticketId);
-                    ShowSuccess("Ticket approved successfully! Status changed to Open.");
-                    LoadTickets();
+                        string sql = @"UPDATE BI_OJT.TICKETS 
+                                       SET STATUS = :status, UPDATED_AT = SYSDATE 
+                                       WHERE TICKET_ID = :ticketId";
+                        using (var cmd = new OracleCommand(sql, conn))
+                        {
+                            cmd.Transaction = tran;
+                            cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = "Open";
+                            cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                            int rows = cmd.ExecuteNonQuery();
+                            if (rows != 1)
+                            {
+                                tran.Rollback();
+                                ShowError("Ticket not found or not updated.");
+                                return;
+                            }
+                        }
+
+                        var newSnap = GetTicketSnapshot(ticketId, conn);
+
+                        // serialize snapshots to strings for the existing AuditHelper.Log(...)
+                        string oldJson = oldSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(oldSnap);
+                        string newJson = newSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(newSnap);
+
+                        // Assuming existing helper method: AuditHelper.Log(int userId, string action, string oldValue, string newValue)
+                        AuditHelper.Log(CurrentUserID, "APPROVE_TICKET", oldJson, newJson);
+
+                        tran.Commit();
+
+                        ShowSuccess("Ticket approved successfully! Status changed to Open.");
+                        LoadTickets();
+                    }
                 }
             }
             catch (Exception ex)
@@ -391,6 +419,10 @@ namespace BI_TICKETING_SYSTEM.Pages
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
+
+                    // Capture snapshot before applying changes
+                    var oldSnap = GetTicketSnapshot(ticketId, conn);
+
                     string sql;
                     OracleCommand cmd;
 
@@ -446,7 +478,10 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     cmd.ExecuteNonQuery();
 
-                    UserService.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId);
+                    // Snapshot after changes and log
+                    var newSnap = GetTicketSnapshot(ticketId, conn);
+                    AuditHelper.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId, oldSnap, newSnap);
+
                     hfShowModal.Value = "";
                     ShowSuccess("Ticket updated successfully!");
                     LoadTickets();
@@ -467,12 +502,15 @@ namespace BI_TICKETING_SYSTEM.Pages
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
+
+                    var oldSnap = GetTicketSnapshot(ticketId, conn);
+
                     string sql = "DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
                     OracleCommand cmd = new OracleCommand(sql, conn);
                     cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                     cmd.ExecuteNonQuery();
 
-                    UserService.LogAction(CurrentUserID, "DELETE_TICKET", "TICKETS", ticketId);
+                    AuditHelper.LogAction(CurrentUserID, "DELETE_TICKET", "TICKETS", ticketId, oldSnap, null);
                     ShowSuccess("Ticket deleted successfully.");
                     LoadTickets();
                 }
@@ -517,6 +555,29 @@ namespace BI_TICKETING_SYSTEM.Pages
             catch (Exception ex)
             {
                 ShowError("Error loading support users: " + ex.Message);
+            }
+        }
+
+        // ===== Helper: snapshot of ticket values we track in audit =====
+        private Dictionary<string, object> GetTicketSnapshot(int ticketId, OracleConnection conn)
+        {
+            string sql = @"SELECT STATUS, CREATED_BY_USER_ID, ASSIGNED_TO_USER_ID, PRIORITY
+                           FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+
+            using (var cmd = new OracleCommand(sql, conn))
+            {
+                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (!reader.Read()) return null;
+
+                    var snap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                    snap["STATUS"] = reader["STATUS"] == DBNull.Value ? null : reader["STATUS"].ToString();
+                    snap["CREATED_BY_USER_ID"] = reader["CREATED_BY_USER_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["CREATED_BY_USER_ID"]);
+                    snap["ASSIGNED_TO_USER_ID"] = reader["ASSIGNED_TO_USER_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["ASSIGNED_TO_USER_ID"]);
+                    snap["PRIORITY"] = reader["PRIORITY"] == DBNull.Value ? null : reader["PRIORITY"].ToString();
+                    return snap;
+                }
             }
         }
 
