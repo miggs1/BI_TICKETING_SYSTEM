@@ -165,6 +165,7 @@
     <Content Include="Images\bi-seal.png" />
     <Content Include="Images\ph-flag.png" />
     <Content Include="Pages\AuditLogs.aspx" />
+    <Content Include="Pages\Users.aspx" />
     <Content Include="Pages\UserProfile.aspx" />
     <Content Include="Pages\Tickets.aspx" />
     <Content Include="Scripts\bootstrap.bundle.js" />
@@ -285,6 +286,13 @@
     </Compile>
     <Compile Include="Pages\AuditLogs.aspx.designer.cs">
       <DependentUpon>AuditLogs.aspx</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\Users.aspx.cs">
+      <DependentUpon>Users.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Pages\Users.aspx.designer.cs">
+      <DependentUpon>Users.aspx</DependentUpon>
     </Compile>
     <Compile Include="Pages\UserProfile.aspx.cs">
       <DependentUpon>UserProfile.aspx</DependentUpon>

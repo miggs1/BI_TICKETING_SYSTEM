@@ -99,7 +99,7 @@
                     <asp:Panel ID="pnlAdminMenu" runat="server" Visible="false">
                         <li class="nav-header">ADMIN</li>
                         <li class="nav-item">
-                            <a href="~/Pages/Users.aspx" runat="server" class="nav-link">
+                            <a href='<%= ResolveUrl("~/Pages/Users.aspx") %>' class="nav-link">
                                 <i class="nav-icon fas fa-users"></i>
                                 <p>User Management</p>
                             </a>
