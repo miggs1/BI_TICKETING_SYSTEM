@@ -46,6 +46,38 @@ Inherits="BI_TICKETING_SYSTEM.Pages.Users" %>
         </div>
     </div>
 
+    <script type="text/javascript">
+        (function () {
+            var searchTimer = null;
+            var searchDelay = 450; // milliseconds
+            var inputId = '<%= txtSearch.ClientID %>';
+            var uniqueId = '<%= txtSearch.UniqueID %>';
+
+            function triggerSearch() {
+                // Use WebForms postback target (UniqueID) so server OnTextChanged fires
+                if (typeof __doPostBack === 'function') {
+                    __doPostBack(uniqueId, '');
+                }
+            }
+
+            function onInput() {
+                if (searchTimer) clearTimeout(searchTimer);
+                searchTimer = setTimeout(triggerSearch, searchDelay);
+            }
+
+            // attach when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function () {
+                    var el = document.getElementById(inputId);
+                    if (el) el.addEventListener('input', onInput);
+                });
+            } else {
+                var el = document.getElementById(inputId);
+                if (el) el.addEventListener('input', onInput);
+            }
+        })();
+    </script>
+
 
     <!-- USER TABLE -->
     <asp:GridView
