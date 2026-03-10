@@ -31,11 +31,6 @@ namespace BI_TICKETING_SYSTEM.Pages
             {
                 conn.Open();
 
-                // NOTE: This query expects a linking column PERSONAL_INFO.USER_ID to exist.
-                // If your schema does not have PERSONAL_INFO.USER_ID, see the SQL provided
-                // in the project root / instructions to add the linking column before using
-                // the personal info fields on this page.
-
                 string sql = @"SELECT U.EMAIL, U.ROLE,
                                       P.LAST_NAME, P.FIRST_NAME, P.MIDDLE_NAME, P.GENDER, P.DOB
                                FROM BI_OJT.USERS U

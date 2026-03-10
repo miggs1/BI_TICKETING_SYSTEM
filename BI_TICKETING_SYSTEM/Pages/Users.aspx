@@ -54,7 +54,6 @@ Inherits="BI_TICKETING_SYSTEM.Pages.Users" %>
             var uniqueId = '<%= txtSearch.UniqueID %>';
 
             function triggerSearch() {
-                // Use WebForms postback target (UniqueID) so server OnTextChanged fires
                 if (typeof __doPostBack === 'function') {
                     __doPostBack(uniqueId, '');
                 }
@@ -65,7 +64,6 @@ Inherits="BI_TICKETING_SYSTEM.Pages.Users" %>
                 searchTimer = setTimeout(triggerSearch, searchDelay);
             }
 
-            // attach when DOM is ready
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', function () {
                     var el = document.getElementById(inputId);
