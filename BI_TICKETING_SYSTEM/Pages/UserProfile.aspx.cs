@@ -31,20 +31,42 @@ namespace BI_TICKETING_SYSTEM.Pages
             {
                 conn.Open();
 
-                string sql = @"SELECT FULL_NAME, EMAIL, ROLE
-                               FROM BI_OJT.USERS
-                               WHERE USER_ID = :userId";
+                // NOTE: This query expects a linking column PERSONAL_INFO.USER_ID to exist.
+                // If your schema does not have PERSONAL_INFO.USER_ID, see the SQL provided
+                // in the project root / instructions to add the linking column before using
+                // the personal info fields on this page.
+
+                string sql = @"SELECT U.EMAIL, U.ROLE,
+                                      P.LAST_NAME, P.FIRST_NAME, P.MIDDLE_NAME, P.GENDER, P.DOB
+                               FROM BI_OJT.USERS U
+                               LEFT JOIN BI_OJT.PERSONAL_INFO P
+                                 ON P.USER_ID = U.USER_ID
+                               WHERE U.USER_ID = :userId";
 
                 OracleCommand cmd = new OracleCommand(sql, conn);
                 cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
 
-                OracleDataReader reader = cmd.ExecuteReader();
-
-                if (reader.Read())
+                using (OracleDataReader reader = cmd.ExecuteReader())
                 {
-                    txtFullName.Text = reader["FULL_NAME"].ToString();
-                    txtEmail.Text = reader["EMAIL"].ToString();
-                    txtRole.Text = reader["ROLE"].ToString();
+                    if (reader.Read())
+                    {
+                        txtEmail.Text = reader["EMAIL"]?.ToString() ?? string.Empty;
+                        txtRole.Text = reader["ROLE"]?.ToString() ?? string.Empty;
+
+                        txtLastName.Text = reader["LAST_NAME"] != DBNull.Value ? reader["LAST_NAME"].ToString() : string.Empty;
+                        txtFirstName.Text = reader["FIRST_NAME"] != DBNull.Value ? reader["FIRST_NAME"].ToString() : string.Empty;
+                        txtMiddleName.Text = reader["MIDDLE_NAME"] != DBNull.Value ? reader["MIDDLE_NAME"].ToString() : string.Empty;
+                        txtGender.Text = reader["GENDER"] != DBNull.Value ? reader["GENDER"].ToString() : string.Empty;
+
+                        if (reader["DOB"] != DBNull.Value)
+                        {
+                            DateTime dob;
+                            if (DateTime.TryParse(reader["DOB"].ToString(), out dob))
+                            {
+                                txtDOB.Text = dob.ToString("MM/dd/yyyy");
+                            }
+                        }
+                    }
                 }
             }
         }

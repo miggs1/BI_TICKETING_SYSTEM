@@ -22,21 +22,43 @@ Inherits="BI_TICKETING_SYSTEM.Pages.UserProfile" %>
     <div class="card shadow-sm">
         <div class="card-body">
                 <div class="row">
-                        <div class="col-md-6">
-                        <label class="form-label">Full Name</label>
-                        <asp:TextBox ID="txtFullName" runat="server" CssClass="form-control" ReadOnly="true" />
-                        </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Last Name</label>
+                        <asp:TextBox ID="txtLastName" runat="server" CssClass="form-control" ReadOnly="true" />
+                    </div>
 
-                        <div class="col-md-6">
+                    <div class="col-md-4">
+                        <label class="form-label">First Name</label>
+                        <asp:TextBox ID="txtFirstName" runat="server" CssClass="form-control" ReadOnly="true" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Middle Name</label>
+                        <asp:TextBox ID="txtMiddleName" runat="server" CssClass="form-control" ReadOnly="true" />
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Gender</label>
+                        <asp:TextBox ID="txtGender" runat="server" CssClass="form-control" ReadOnly="true" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Date Of Birth</label>
+                        <asp:TextBox ID="txtDOB" runat="server" CssClass="form-control" ReadOnly="true" />
+                    </div>
+
+                    <div class="col-md-4">
                         <label class="form-label">Email</label>
                         <asp:TextBox ID="txtEmail" runat="server" CssClass="form-control" ReadOnly="true" />
-                        </div>
+                    </div>
                 </div>
 
                 <div class="row mt-3">
                     <div class="col-md-6">
-                    <label class="form-label">Role</label>
-                    <asp:TextBox ID="txtRole" runat="server" CssClass="form-control" ReadOnly="true" />
+                        <label class="form-label">Role</label>
+                        <asp:TextBox ID="txtRole" runat="server" CssClass="form-control" ReadOnly="true" />
                     </div>
                 </div>
 
