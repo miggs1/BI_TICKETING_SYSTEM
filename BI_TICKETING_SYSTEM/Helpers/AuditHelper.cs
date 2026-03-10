@@ -8,7 +8,10 @@ public static class AuditHelper
 {
     public static void Log(int userId, string action, string oldValue, string newValue)
     {
-        using (OracleConnection conn = DatabaseHelper.GetConnection())
+        // Guard: do not insert audit rows without a valid user id
+        if (userId <= 0) return;
+
+        using (var conn = DatabaseHelper.GetConnection())
         {
             conn.Open();
 
@@ -16,14 +19,16 @@ public static class AuditHelper
                           (USER_ID, ACTION, OLD_VALUE, NEW_VALUE, CREATED_AT)
                           VALUES (:userId, :action, :oldVal, :newVal, SYSDATE)";
 
-            OracleCommand cmd = new OracleCommand(sql, conn);
+            using (var cmd = new OracleCommand(sql, conn))
+            {
+                cmd.BindByName = true;
+                cmd.Parameters.Add(":userId", OracleDbType.Int32).Value = userId;
+                cmd.Parameters.Add(":action", OracleDbType.Varchar2).Value = (action ?? string.Empty);
+                cmd.Parameters.Add(":oldVal", OracleDbType.Varchar2).Value = (oldValue ?? string.Empty);
+                cmd.Parameters.Add(":newVal", OracleDbType.Varchar2).Value = (newValue ?? string.Empty);
 
-            cmd.Parameters.Add("userId", userId);
-            cmd.Parameters.Add("action", action);
-            cmd.Parameters.Add("oldVal", oldValue);
-            cmd.Parameters.Add("newVal", newValue);
-
-            cmd.ExecuteNonQuery();
+                cmd.ExecuteNonQuery();
+            }
         }
     }
 
