@@ -115,7 +115,7 @@
                     <asp:Panel ID="pnlSupportMenu" runat="server" Visible="false">
                         <li class="nav-header">SUPPORT</li>
                         <li class="nav-item">
-                            <a href="~/Pages/AssignedTickets.aspx" runat="server" class="nav-link">
+                            <a href='<%= ResolveUrl("~/Pages/AssignedTickets.aspx") %>' class="nav-link">
                                 <i class="nav-icon fas fa-clipboard-list"></i>
                                 <p>Assigned Tickets</p>
                             </a>

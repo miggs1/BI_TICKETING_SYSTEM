@@ -8,7 +8,7 @@ using System.Collections.Generic;
 
 namespace BI_TICKETING_SYSTEM.Pages
 {
-    public partial class Tickets : Page
+    public partial class AssignedTickets : Page
     {
         // ===== PAGINATION =====
         private int PageSize = 10;
@@ -34,20 +34,14 @@ namespace BI_TICKETING_SYSTEM.Pages
 
             if (!IsPostBack)
             {
-                // Support cannot access this page
-                if (CurrentRole.ToLower() == "support")
+                // User cannot access this page (unchanged)
+                if (CurrentRole.ToLower() == "user")
                 {
                     Response.Redirect("~/Default.aspx");
                     return;
                 }
 
-                // Only Admin and User can create tickets
-                pnlCreateBtn.Visible = (CurrentRole.ToLower() != "support");
-
-                // Pre-fill create form
-                txtCreatedBy.Text = CurrentUserName;
-                txtCreatedDate.Text = DateTime.Now.ToString("MM/dd/yyyy");
-
+                // Load tickets (modified: only tickets assigned to current user)
                 LoadTickets();
             }
         }
@@ -58,7 +52,6 @@ namespace BI_TICKETING_SYSTEM.Pages
             string search = txtSearch.Text.Trim();
             string filterStatus = ddlFilterStatus.SelectedValue;
             string filterPriority = ddlFilterPriority.SelectedValue;
-            string role = CurrentRole.ToLower();
             int userId = CurrentUserID;
 
             try
@@ -77,9 +70,8 @@ namespace BI_TICKETING_SYSTEM.Pages
                         LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
                         WHERE 1=1 ";
 
-                    // Users only see their own tickets
-                    if (role == "user")
-                        sql += " AND T.CREATED_BY_USER_ID = :userId ";
+                    // Always restrict to tickets assigned to the current user
+                    sql += " AND T.ASSIGNED_TO_USER_ID = :assignedTo ";
 
                     if (!string.IsNullOrEmpty(search))
                         sql += " AND (UPPER(T.TICKET_NUMBER) LIKE UPPER(:search) OR UPPER(T.TITLE) LIKE UPPER(:search)) ";
@@ -90,14 +82,10 @@ namespace BI_TICKETING_SYSTEM.Pages
                     if (!string.IsNullOrEmpty(filterPriority))
                         sql += " AND UPPER(T.PRIORITY) = UPPER(:filterPriority) ";
 
-
-
                     sql += " ORDER BY T.CREATED_AT DESC ";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
-
-                    if (role == "user")
-                        cmd.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
+                    cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = userId;
 
                     if (!string.IsNullOrEmpty(search))
                         cmd.Parameters.Add("search", OracleDbType.Varchar2).Value = "%" + search + "%";
@@ -148,63 +136,6 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
         }
 
-        // ===== CREATE TICKET =====
-        protected void btnCreateTicket_Click(object sender, EventArgs e)
-        {
-            if (!Page.IsValid) return;
-
-            try
-            {
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
-                {
-                    conn.Open();
-
-                    // Generate ticket number
-                    string year = DateTime.Now.Year.ToString();
-                    OracleCommand seqCmd = new OracleCommand("SELECT BI_OJT.TICKETS_NUM_SEQ.NEXTVAL FROM DUAL", conn);
-                    decimal nextNum = Convert.ToDecimal(seqCmd.ExecuteScalar());
-                    string ticketNumber = $"TKT-{year}-{((int)nextNum).ToString("D4")}";
-
-
-                    // Get next ticket ID
-                    OracleCommand idCmd = new OracleCommand("SELECT BI_OJT.TICKETS_SEQ.NEXTVAL FROM DUAL", conn);
-                    decimal ticketId = Convert.ToDecimal(idCmd.ExecuteScalar());
-
-                    string sql = @"INSERT INTO BI_OJT.TICKETS 
-                        (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, 
-                         CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT)
-                        VALUES 
-                        (:ticketId, :ticketNumber, :title, :description, 'Pending Approval',
-                         :createdBy, SYSDATE, SYSDATE)";
-
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.Parameters.Add("ticketId", OracleDbType.Decimal).Value = ticketId;
-                    cmd.Parameters.Add("ticketNumber", OracleDbType.Varchar2).Value = ticketNumber;
-                    cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtTitle.Text.Trim();
-                    cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtDescription.Text.Trim();
-                    cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
-                    cmd.ExecuteNonQuery();
-
-                    // Fetch snapshot after create and log
-                    var newSnap = GetTicketSnapshot((int)ticketId, conn);
-                    AuditHelper.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId, null, newSnap);
-
-                    // Clear form
-                    txtTitle.Text = "";
-                    txtDescription.Text = "";
-
-                    hfShowModal.Value = "";
-                    ShowSuccess($"Ticket {ticketNumber} submitted successfully! Status: Pending Approval.");
-                    LoadTickets();
-                }
-            }
-            catch (Exception ex)
-            {
-                hfShowModal.Value = "create";
-                ShowError("Error creating ticket: " + ex.Message);
-            }
-        }
-
         // ===== REPEATER ITEM COMMAND =====
         protected void rptTickets_ItemCommand(object source, RepeaterCommandEventArgs e)
         {
@@ -220,7 +151,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                         ApproveTicket(ticketId);
                     break;
                 case "EditTicket":
-                    // ✅ admin, support, and user can all edit
                     if (CurrentRole.ToLower() == "admin" ||
                         CurrentRole.ToLower() == "support" ||
                         CurrentRole.ToLower() == "user")
@@ -269,6 +199,32 @@ namespace BI_TICKETING_SYSTEM.Pages
                         lblViewCreatedDate.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
                         lblViewAssignedTo.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString();
 
+                        // set hidden id for use when adding remark
+                        hfViewTicketId.Value = ticketId.ToString();
+
+                        // load remarks for the ticket
+                        LoadRemarks(ticketId);
+
+                        // Determine whether current user may add remarks:
+                        // Admins may always add. Support may add only if assigned to this ticket.
+                        bool canAddRemark = false;
+                        string role = CurrentRole?.ToLower() ?? "user";
+                        if (role == "admin")
+                        {
+                            canAddRemark = true;
+                        }
+                        else if (role == "support")
+                        {
+                            if (row["ASSIGNED_TO_USER_ID"] != DBNull.Value)
+                            {
+                                int assignedId = Convert.ToInt32(row["ASSIGNED_TO_USER_ID"]);
+                                if (assignedId == CurrentUserID) canAddRemark = true;
+                            }
+                        }
+
+                        // show/hide add-remark UI server-side
+                        pnlAddRemark.Visible = canAddRemark;
+
                         hfShowModal.Value = "view";
                         LoadTickets();
                     }
@@ -277,6 +233,160 @@ namespace BI_TICKETING_SYSTEM.Pages
             catch (Exception ex)
             {
                 ShowError("Error loading ticket details: " + ex.Message);
+            }
+        }
+
+        // ===== LOAD REMARKS =====
+        private void LoadRemarks(int ticketId)
+        {
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql = @"
+                        SELECT R.REMARK_ID,
+                               R.TICKET_ID,
+                               R.REMARK_TEXT,
+                               R.CREATED_AT,
+                               U.FULL_NAME AS CREATED_BY_NAME
+                        FROM BI_OJT.TICKET_REMARKS R
+                        LEFT JOIN BI_OJT.USERS U
+                        ON R.USER_ID = U.USER_ID
+                        WHERE R.TICKET_ID = :ticketId
+                        ORDER BY R.CREATED_AT DESC";
+                    OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.BindByName = true;
+                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                    OracleDataAdapter da = new OracleDataAdapter(cmd);
+                    DataTable dt = new DataTable();
+                    da.Fill(dt);
+
+                    rptRemarks.DataSource = dt;
+                    rptRemarks.DataBind();
+
+                    // Show "No remarks yet." panel when there are no rows
+                    pnlNoRemarks.Visible = (dt.Rows.Count == 0);
+                    rptRemarks.Visible = (dt.Rows.Count > 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error loading remarks: " + ex.Message);
+            }
+        }
+
+        // ===== ADD REMARK =====
+        protected void btnAddRemark_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(txtNewRemark.Text))
+            {
+                ShowError("Please enter a remark before submitting.");
+                hfShowModal.Value = "view";
+                return;
+            }
+
+            if (!int.TryParse(hfViewTicketId.Value, out int ticketId) || ticketId == 0)
+            {
+                ShowError("Invalid ticket selected.");
+                return;
+            }
+
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    // Permission check (admins or assigned support)
+                    string role = CurrentRole?.ToLower() ?? "user";
+                    if (role != "admin")
+                    {
+                        if (role == "support")
+                        {
+                            const string checkSql = "SELECT ASSIGNED_TO_USER_ID FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                            using (var checkCmd = new OracleCommand(checkSql, conn))
+                            {
+                                checkCmd.BindByName = true;
+                                checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                                object assignedVal = checkCmd.ExecuteScalar();
+                                if (assignedVal == null || assignedVal == DBNull.Value || Convert.ToInt32(assignedVal) != CurrentUserID)
+                                {
+                                    ShowError("Only the assigned support user or an admin can add remarks.");
+                                    hfShowModal.Value = "view";
+                                    return;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            ShowError("Only the assigned support user or an admin can add remarks.");
+                            hfShowModal.Value = "view";
+                            return;
+                        }
+                    }
+
+                    string createdByColumn = null;
+                    string colQuery = @"
+                        SELECT COLUMN_NAME
+                        FROM ALL_TAB_COLUMNS
+                        WHERE OWNER = :owner
+                          AND TABLE_NAME = :table
+                          AND COLUMN_NAME IN ('CREATED_BY_USER_ID', 'CREATED_BY', 'CREATED_BY_ID')";
+
+                    using (var colCmd = new OracleCommand(colQuery, conn))
+                    {
+                        colCmd.BindByName = true;
+                        colCmd.Parameters.Add("owner", OracleDbType.Varchar2).Value = "BI_OJT";
+                        colCmd.Parameters.Add("table", OracleDbType.Varchar2).Value = "TICKET_REMARKS";
+
+                        using (var reader = colCmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                                createdByColumn = reader.GetString(0); // e.g. CREATED_BY_USER_ID or CREATED_BY
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(createdByColumn))
+                    {
+                        // If none of the expected names exist, report a helpful error
+                        ShowError("Database schema mismatch: cannot find a 'created by' column on BI_OJT.TICKET_REMARKS. Check table columns.");
+                        hfShowModal.Value = "view";
+                        return;
+                    }
+
+                    string sql = @"
+                        INSERT INTO BI_OJT.TICKET_REMARKS
+                        (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT)
+                        VALUES
+                        (:ticketId, :userId, :remarkText, SYSDATE)";
+                    using (var cmd = new OracleCommand(sql, conn))
+                    {
+                        cmd.BindByName = true;
+
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+                        cmd.Parameters.Add("remarkText", OracleDbType.Clob).Value = txtNewRemark.Text.Trim();
+
+                        cmd.ExecuteNonQuery();
+
+                        txtNewRemark.Text = "";
+                        LoadRemarks(ticketId);
+                        hfShowModal.Value = "view";
+                        ShowSuccess("Remark added successfully.");
+                    }
+                }
+            }
+            catch (Oracle.ManagedDataAccess.Client.OracleException oex)
+            {
+                hfShowModal.Value = "view";
+                ShowError($"Oracle error adding remark: {oex.Number} - {oex.Message}");
+            }
+            catch (Exception ex)
+            {
+                hfShowModal.Value = "view";
+                ShowError("Error adding remark: " + ex.Message);
             }
         }
 
@@ -311,11 +421,9 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                         var newSnap = GetTicketSnapshot(ticketId, conn);
 
-                        // serialize snapshots to strings for the existing AuditHelper.Log(...)
                         string oldJson = oldSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(oldSnap);
                         string newJson = newSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(newSnap);
 
-                        // Assuming existing helper method: AuditHelper.Log(int userId, string action, string oldValue, string newValue)
                         AuditHelper.Log(CurrentUserID, "APPROVE_TICKET", oldJson, newJson);
 
                         tran.Commit();
@@ -363,7 +471,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                             pnlAssignTo.Visible = true;
                             pnlUserEdit.Visible = false;
 
-                            // Hide status row for admin (already shown above)
                             txtEditTitle.Text = row["TITLE"].ToString();
                             txtEditDescription.Text = row["DESCRIPTION"].ToString();
                             txtEditCategory.Text = row["CATEGORY"].ToString();
@@ -423,7 +530,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                 {
                     conn.Open();
 
-                    // Capture snapshot before applying changes
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
 
                     string sql;
@@ -431,7 +537,6 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     if (CurrentRole.ToLower() == "support")
                     {
-                        // Support can only update Status
                         sql = @"UPDATE BI_OJT.TICKETS 
                         SET STATUS = :status, UPDATED_AT = SYSDATE
                         WHERE TICKET_ID = :ticketId";
@@ -442,7 +547,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                     }
                     else if (CurrentRole.ToLower() == "user")
                     {
-                        // User can only update Title, Description, Category
                         sql = @"UPDATE BI_OJT.TICKETS 
                         SET TITLE = :title,
                             DESCRIPTION = :description,
@@ -458,7 +562,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                     }
                     else
                     {
-                        // Admin can update everything
                         sql = @"UPDATE BI_OJT.TICKETS 
                         SET TITLE = :title,
                             DESCRIPTION = :description,
@@ -481,7 +584,6 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     cmd.ExecuteNonQuery();
 
-                    // Snapshot after changes and log
                     var newSnap = GetTicketSnapshot(ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId, oldSnap, newSnap);
 
