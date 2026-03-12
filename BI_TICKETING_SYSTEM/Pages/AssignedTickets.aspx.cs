@@ -199,10 +199,8 @@ namespace BI_TICKETING_SYSTEM.Pages
                         lblViewCreatedDate.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
                         lblViewAssignedTo.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString();
 
-                        // set hidden id for use when adding remark
                         hfViewTicketId.Value = ticketId.ToString();
 
-                        // load remarks for the ticket
                         LoadRemarks(ticketId);
 
                         // Determine whether current user may add remarks:
@@ -280,116 +278,36 @@ namespace BI_TICKETING_SYSTEM.Pages
         // ===== ADD REMARK =====
         protected void btnAddRemark_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(txtNewRemark.Text))
-            {
-                ShowError("Please enter a remark before submitting.");
-                hfShowModal.Value = "view";
-                return;
-            }
+            int ticketId = Convert.ToInt32(hfViewTicketId.Value);
+            string remark = txtNewRemark.Text.Trim();
 
-            if (!int.TryParse(hfViewTicketId.Value, out int ticketId) || ticketId == 0)
-            {
-                ShowError("Invalid ticket selected.");
-                return;
-            }
+            if (string.IsNullOrEmpty(remark)) return;
 
-            try
+            using (OracleConnection conn = new OracleConnection(DatabaseHelper.GetConnectionString()))
             {
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                // Use the exact column names from your CREATE TABLE statement
+                string sql = @"
+            INSERT INTO BI_OJT.TICKET_REMARKS 
+            (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT) 
+            VALUES 
+            (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
+
+                using (OracleCommand cmd = new OracleCommand(sql, conn))
                 {
+                    cmd.Parameters.Add(":ticketId", OracleDbType.Int32).Value = ticketId;
+                    cmd.Parameters.Add(":userId", OracleDbType.Int32).Value = CurrentUserID;
+                    cmd.Parameters.Add(":remarkText", OracleDbType.Clob).Value = remark;
+
                     conn.Open();
-
-                    // Permission check (admins or assigned support)
-                    string role = CurrentRole?.ToLower() ?? "user";
-                    if (role != "admin")
-                    {
-                        if (role == "support")
-                        {
-                            const string checkSql = "SELECT ASSIGNED_TO_USER_ID FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
-                            using (var checkCmd = new OracleCommand(checkSql, conn))
-                            {
-                                checkCmd.BindByName = true;
-                                checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                                object assignedVal = checkCmd.ExecuteScalar();
-                                if (assignedVal == null || assignedVal == DBNull.Value || Convert.ToInt32(assignedVal) != CurrentUserID)
-                                {
-                                    ShowError("Only the assigned support user or an admin can add remarks.");
-                                    hfShowModal.Value = "view";
-                                    return;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            ShowError("Only the assigned support user or an admin can add remarks.");
-                            hfShowModal.Value = "view";
-                            return;
-                        }
-                    }
-
-                    string createdByColumn = null;
-                    string colQuery = @"
-                        SELECT COLUMN_NAME
-                        FROM ALL_TAB_COLUMNS
-                        WHERE OWNER = :owner
-                          AND TABLE_NAME = :table
-                          AND COLUMN_NAME IN ('CREATED_BY_USER_ID', 'CREATED_BY', 'CREATED_BY_ID')";
-
-                    using (var colCmd = new OracleCommand(colQuery, conn))
-                    {
-                        colCmd.BindByName = true;
-                        colCmd.Parameters.Add("owner", OracleDbType.Varchar2).Value = "BI_OJT";
-                        colCmd.Parameters.Add("table", OracleDbType.Varchar2).Value = "TICKET_REMARKS";
-
-                        using (var reader = colCmd.ExecuteReader())
-                        {
-                            if (reader.Read())
-                                createdByColumn = reader.GetString(0); // e.g. CREATED_BY_USER_ID or CREATED_BY
-                        }
-                    }
-
-                    if (string.IsNullOrEmpty(createdByColumn))
-                    {
-                        // If none of the expected names exist, report a helpful error
-                        ShowError("Database schema mismatch: cannot find a 'created by' column on BI_OJT.TICKET_REMARKS. Check table columns.");
-                        hfShowModal.Value = "view";
-                        return;
-                    }
-
-                    string sql = @"
-                        INSERT INTO BI_OJT.TICKET_REMARKS
-                        (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT)
-                        VALUES
-                        (:ticketId, :userId, :remarkText, SYSDATE)";
-                    using (var cmd = new OracleCommand(sql, conn))
-                    {
-                        cmd.BindByName = true;
-
-                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                        cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
-                        cmd.Parameters.Add("remarkText", OracleDbType.Clob).Value = txtNewRemark.Text.Trim();
-
-                        cmd.ExecuteNonQuery();
-
-                        txtNewRemark.Text = "";
-                        LoadRemarks(ticketId);
-                        hfShowModal.Value = "view";
-                        ShowSuccess("Remark added successfully.");
-                    }
+                    cmd.ExecuteNonQuery();
                 }
             }
-            catch (Oracle.ManagedDataAccess.Client.OracleException oex)
-            {
-                hfShowModal.Value = "view";
-                ShowError($"Oracle error adding remark: {oex.Number} - {oex.Message}");
-            }
-            catch (Exception ex)
-            {
-                hfShowModal.Value = "view";
-                ShowError("Error adding remark: " + ex.Message);
-            }
-        }
 
+            txtNewRemark.Text = "";
+            LoadTicketForView(ticketId); // Refresh the view
+            ShowSuccess("Remark added successfully!");
+        }
+        
         // ===== APPROVE TICKET =====
         private void ApproveTicket(int ticketId)
         {
