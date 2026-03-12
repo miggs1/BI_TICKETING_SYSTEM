@@ -162,6 +162,7 @@
     <Content Include="Images\bi-seal.png" />
     <Content Include="Images\ph-flag.png" />
     <Content Include="Pages\AuditLogs.aspx" />
+    <Content Include="Pages\AssignedTickets.aspx" />
     <Content Include="Pages\Users.aspx" />
     <Content Include="Pages\UserProfile.aspx" />
     <Content Include="Pages\Tickets.aspx" />
@@ -283,6 +284,13 @@
     </Compile>
     <Compile Include="Pages\AuditLogs.aspx.designer.cs">
       <DependentUpon>AuditLogs.aspx</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\AssignedTickets.aspx.cs">
+      <DependentUpon>AssignedTickets.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Pages\AssignedTickets.aspx.designer.cs">
+      <DependentUpon>AssignedTickets.aspx</DependentUpon>
     </Compile>
     <Compile Include="Pages\Users.aspx.cs">
       <DependentUpon>Users.aspx</DependentUpon>
