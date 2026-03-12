@@ -169,10 +169,10 @@ Inherits="BI_TICKETING_SYSTEM.Pages.Users" %>
 
                 <div class="mb-3">
                     <label>Role</label>
-                    <asp:DropDownList ID="ddlRole" runat="server" CssClass="form-control">
-                        <asp:ListItem Value="ADMIN">Admin</asp:ListItem>
-                        <asp:ListItem Value="SUPPORT">Support</asp:ListItem>
-                        <asp:ListItem Value="USER">User</asp:ListItem>
+                <asp:DropDownList ID="ddlRole" runat="server" CssClass="form-control">
+                        <asp:ListItem Value="Admin">Admin</asp:ListItem>
+                        <asp:ListItem Value="Support">Support</asp:ListItem>
+                        <asp:ListItem Value="User">User</asp:ListItem>
                     </asp:DropDownList>
                 </div>
 

@@ -18,7 +18,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
         private int CurrentUserID
         {
-            get { return Session["USER_ID"] != null ? Convert.ToInt32(Session["USER_ID"]) : 0; }
+            get { return Session["UserID"] != null ? Convert.ToInt32(Session["UserID"]) : 0; }
         }
 
 
@@ -113,15 +113,16 @@ namespace BI_TICKETING_SYSTEM.Pages
             string name = txtFullName.Text.Trim();
             string uname = txtUName.Text.Trim();
             string email = txtEmail.Text.Trim();
-            string role = ddlRole.SelectedValue;
+            string role = ddlRole.SelectedValue; // proper-case values from dropdown
 
-            string password = PasswordHelper.HashPassword("Temp@123");
+            // default password for new users
+            string password = PasswordHelper.HashPassword("password123");
 
             using (var conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
 
-                // pre-check
+                // pre-check (parameterized)
                 using (var check = new OracleCommand("SELECT COUNT(1) FROM USERS WHERE USERNAME = :u OR EMAIL = :e", conn))
                 {
                     check.BindByName = true;
@@ -132,8 +133,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                 }
 
                 string insert = @"
-                        INSERT INTO USERS (USER_ID, FULL_NAME, USERNAME, EMAIL, PASSWORD, ROLE, STATUS)
-                        VALUES (USERS_SEQ.NEXTVAL, :name, :uname, :email, :pass, :role, 'ACTIVE')";
+                        INSERT INTO USERS (USER_ID, FULL_NAME, USERNAME, EMAIL, PASSWORD, ROLE, STATUS, CREATED_AT)
+                        VALUES (USERS_SEQ.NEXTVAL, :name, :uname, :email, :pass, :role, :status, SYSDATE)";
+
                 using (var cmd = new OracleCommand(insert, conn))
                 {
                     cmd.BindByName = true;
@@ -142,6 +144,8 @@ namespace BI_TICKETING_SYSTEM.Pages
                     cmd.Parameters.Add(":email", email);
                     cmd.Parameters.Add(":pass", password);
                     cmd.Parameters.Add(":role", role);
+                    // Match the casing expected by UserService ("Active")
+                    cmd.Parameters.Add(":status", "Active");
                     try
                     {
                         cmd.ExecuteNonQuery();

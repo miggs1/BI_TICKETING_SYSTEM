@@ -1,3 +1,4 @@
+DECLARE
   start_val NUMBER;
 BEGIN
   SELECT NVL(MAX(USER_ID),0) + 1 INTO start_val FROM USERS;
