@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -163,9 +163,9 @@
     <Content Include="Images\ph-flag.png" />
     <Content Include="Pages\AuditLogs.aspx" />
     <Content Include="Pages\AssignedTickets.aspx" />
+    <Content Include="Pages\Tickets.aspx" />
     <Content Include="Pages\Users.aspx" />
     <Content Include="Pages\UserProfile.aspx" />
-    <Content Include="Pages\Tickets.aspx" />
     <Content Include="Scripts\bootstrap.bundle.js" />
     <Content Include="Scripts\bootstrap.bundle.min.js" />
     <Content Include="Scripts\bootstrap.esm.js" />
@@ -292,6 +292,13 @@
     <Compile Include="Pages\AssignedTickets.aspx.designer.cs">
       <DependentUpon>AssignedTickets.aspx</DependentUpon>
     </Compile>
+    <Compile Include="Pages\Tickets.aspx.cs">
+      <DependentUpon>Tickets.aspx</DependentUpon>
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="Pages\Tickets.aspx.designer.cs">
+      <DependentUpon>Tickets.aspx</DependentUpon>
+    </Compile>
     <Compile Include="Pages\Users.aspx.cs">
       <DependentUpon>Users.aspx</DependentUpon>
       <SubType>ASPXCodeBehind</SubType>
@@ -305,13 +312,6 @@
     </Compile>
     <Compile Include="Pages\UserProfile.aspx.designer.cs">
       <DependentUpon>UserProfile.aspx</DependentUpon>
-    </Compile>
-    <Compile Include="Pages\Tickets.aspx.cs">
-      <DependentUpon>Tickets.aspx</DependentUpon>
-      <SubType>ASPXCodeBehind</SubType>
-    </Compile>
-    <Compile Include="Pages\Tickets.aspx.designer.cs">
-      <DependentUpon>Tickets.aspx</DependentUpon>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Site.Master.cs">
