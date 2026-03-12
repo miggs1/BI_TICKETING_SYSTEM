@@ -96,6 +96,31 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.TextBox txtDOB;
 
         /// <summary>
+        /// txtEditLastName control.
+        /// </summary>
+        protected global::System.Web.UI.WebControls.TextBox txtEditLastName;
+
+        /// <summary>
+        /// txtEditFirstName control.
+        /// </summary>
+        protected global::System.Web.UI.WebControls.TextBox txtEditFirstName;
+
+        /// <summary>
+        /// txtEditMiddleName control.
+        /// </summary>
+        protected global::System.Web.UI.WebControls.TextBox txtEditMiddleName;
+
+        /// <summary>
+        /// ddlEditGender control.
+        /// </summary>
+        protected global::System.Web.UI.WebControls.DropDownList ddlEditGender;
+
+        /// <summary>
+        /// txtEditDOB control.
+        /// </summary>
+        protected global::System.Web.UI.WebControls.TextBox txtEditDOB;
+
+        /// <summary>
         /// txtEmail control.
         /// </summary>
         /// <remarks>

@@ -64,8 +64,10 @@ Inherits="BI_TICKETING_SYSTEM.Pages.UserProfile" %>
 
 
                 <div class="mt-4">
+                    <button type="button" class="btn btn-primary mr-2" data-toggle="modal" data-target="#editProfileModal">
+                        Edit Profile</button>
                     <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#passwordModal">
-                    Change Password</button>
+                        Change Password</button>
                 </div>
         </div>
     </div>
@@ -90,8 +92,7 @@ Inherits="BI_TICKETING_SYSTEM.Pages.UserProfile" %>
                         ID="txtNewPassword"
                         runat="server"
                         CssClass="form-control"
-                        TextMode="Password"
-                        read-only="True">
+                        TextMode="Password">
                     </asp:TextBox>
                 </div>
             </div>
@@ -104,6 +105,48 @@ Inherits="BI_TICKETING_SYSTEM.Pages.UserProfile" %>
                     Text="Update Password"
                     CssClass="btn btn-success"
                     OnClick="btnSavePassword_Click"/>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- EDIT PROFILE MODAL -->
+<div class="modal fade" id="editProfileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Edit Profile</h5>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Last Name</label>
+                    <asp:TextBox ID="txtEditLastName" runat="server" CssClass="form-control" />
+                </div>
+                <div class="form-group mt-2">
+                    <label>First Name</label>
+                    <asp:TextBox ID="txtEditFirstName" runat="server" CssClass="form-control" />
+                </div>
+                <div class="form-group mt-2">
+                    <label>Middle Name</label>
+                    <asp:TextBox ID="txtEditMiddleName" runat="server" CssClass="form-control" />
+                </div>
+                <div class="form-group mt-2">
+                    <label>Gender</label>
+                    <asp:DropDownList ID="ddlEditGender" runat="server" CssClass="form-control">
+                        <asp:ListItem Value="">Select...</asp:ListItem>
+                        <asp:ListItem Value="Male">Male</asp:ListItem>
+                        <asp:ListItem Value="Female">Female</asp:ListItem>
+                        <asp:ListItem Value="Other">Other</asp:ListItem>
+                    </asp:DropDownList>
+                </div>
+                <div class="form-group mt-2">
+                    <label>Date Of Birth</label>
+                    <asp:TextBox ID="txtEditDOB" runat="server" CssClass="form-control" placeholder="MM/dd/yyyy" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <asp:Button ID="btnSaveProfile" runat="server" CssClass="btn btn-success" Text="Save" OnClick="btnSaveProfile_Click" />
             </div>
         </div>
     </div>
