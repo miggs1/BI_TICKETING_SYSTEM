@@ -10,15 +10,15 @@
     .btn-create { background: linear-gradient(135deg, #001f54, #003087); color: white; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; }
     .btn-create:hover { background: linear-gradient(135deg, #003087, #0041a8); color: white; }
     .badge-pending-approval { background: #6c757d; color: white; }
-    .badge-open { background: #001f54; color: white; }
+    .badge-open { background: #ffc107; color: #333; }
     .badge-in-progress { background: #007bff; color: white; }
     .badge-resolved { background: #28a745; color: white; }
-    .badge-closed { background: #343a40; color: white; }
+    .badge-closed { background: #000000; color: white; }
     .badge-overdue { background: #dc3545; color: white; }
-    .badge-low { background: #28a745; color: white; }
+    .badge-low { background: #007bff; color: white; }
     .badge-medium { background: #ffc107; color: #333; }
     .badge-high { background: #fd7e14; color: white; }
-    .badge-critical { background: #dc3545; color: white; }
+    .badge-urgent { background: #dc3545; color: white; }
     .badge-not-set { background: #dee2e6; color: #555; }
     .table th { background: #001f54; color: white; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
     .table td { font-size: 13px; vertical-align: middle; }
@@ -28,8 +28,8 @@
     .btn-view:hover { background: #138496; color: white; }
     .btn-delete { background: #dc3545; color: white; }
     .btn-delete:hover { background: #c82333; color: white; }
-    .dropdown-status, .dropdown-assign { font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid #ddd; }
-    .dropdown-status:focus, .dropdown-assign:focus { border-color: #001f54; box-shadow: 0 0 0 2px rgba(0,31,84,0.1); }
+    .dropdown-status, .dropdown-assign, .dropdown-priority { font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid #ddd; }
+    .dropdown-status:focus, .dropdown-assign:focus, .dropdown-priority:focus { border-color: #001f54; box-shadow: 0 0 0 2px rgba(0,31,84,0.1); }
     .modal-header { background: linear-gradient(135deg, #001f54, #003087); color: white; border-radius: 10px 10px 0 0; }
     .modal-header .close { color: white; opacity: 1; }
     .modal-content { border-radius: 10px; border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
@@ -42,6 +42,14 @@
     .empty-state i { font-size: 60px; margin-bottom: 15px; color: #ddd; }
     .alert-success-custom { background: #d4edda; border: 1px solid #c3e6cb; border-left: 4px solid #28a745; border-radius: 8px; color: #155724; padding: 10px 15px; font-size: 13px; }
     .alert-danger-custom { background: #f8d7da; border: 1px solid #f5c6cb; border-left: 4px solid #dc3545; border-radius: 8px; color: #721c24; padding: 10px 15px; font-size: 13px; }
+    .remarks-section { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 20px; }
+    .remarks-title { font-size: 13px; font-weight: 600; color: #001f54; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 15px; border-bottom: 2px solid #001f54; padding-bottom: 8px; }
+    .remark-item { background: white; border-left: 3px solid #007bff; border-radius: 6px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .remark-header { font-size: 11px; color: #666; margin-bottom: 8px; }
+    .remark-text { font-size: 13px; color: #333; line-height: 1.6; white-space: pre-wrap; }
+    .remark-author { font-weight: 600; color: #001f54; }
+    .no-remarks { text-align: center; color: #999; font-size: 12px; font-style: italic; padding: 20px; }
+
 </style>
 </asp:Content>
 
@@ -93,7 +101,7 @@
                         <asp:ListItem Value="Low">Low</asp:ListItem>
                         <asp:ListItem Value="Medium">Medium</asp:ListItem>
                         <asp:ListItem Value="High">High</asp:ListItem>
-                        <asp:ListItem Value="Critical">Critical</asp:ListItem>
+                        <asp:ListItem Value="Urgent">Urgent</asp:ListItem>
                     </asp:DropDownList>
                 </div>
             </div>
@@ -123,9 +131,20 @@
                             <td><%# Eval("TITLE") %></td>
                             <td><%# Eval("CREATED_BY_NAME") %></td>
                             <td>
-                                <span class="badge <%# GetPriorityBadge(Eval("PRIORITY").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
-                                    <%# string.IsNullOrEmpty(Eval("PRIORITY").ToString()) ? "Not Set" : Eval("PRIORITY").ToString() %>
-                                </span>
+                                <asp:DropDownList ID="ddlRowPriority" runat="server" CssClass="dropdown-priority" AutoPostBack="true"
+                                    Visible='<%# Session["UserRole"] != null && Session["UserRole"].ToString().ToLower() == "admin" %>'
+                                    OnSelectedIndexChanged="ddlRowPriority_Changed">
+                                    <asp:ListItem Value="">NOT SET</asp:ListItem>
+                                    <asp:ListItem Value="LOW">Low</asp:ListItem>
+                                    <asp:ListItem Value="MEDIUM">Medium</asp:ListItem>
+                                    <asp:ListItem Value="HIGH">High</asp:ListItem>
+                                    <asp:ListItem Value="URGENT">Urgent</asp:ListItem>
+                                </asp:DropDownList>
+                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || Session["UserRole"].ToString().ToLower() != "admin" %>'>
+                                    <span class="badge <%# GetPriorityBadge(Eval("PRIORITY").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
+                                        <%# string.IsNullOrEmpty(Eval("PRIORITY").ToString()) ? "Not Set" : Eval("PRIORITY").ToString() %>
+                                    </span>
+                                </asp:PlaceHolder>
                             </td>
                             <td>
                                 <asp:DropDownList ID="ddlRowStatus" runat="server" CssClass="dropdown-status" AutoPostBack="true"
@@ -167,7 +186,7 @@
                                 <asp:LinkButton runat="server" CommandName="DeleteTicket"
                                     CommandArgument='<%# Eval("TICKET_ID") %>'
                                     CssClass="btn btn-action btn-delete"
-                                    Visible='<%# Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user" %>'
+                                    Visible='<%# Session["UserRole"] != null && Session["UserRole"].ToString().ToLower() == "admin" %>'
                                     ToolTip="Delete"
                                     OnClientClick="return confirmDelete(this);">
                                     <i class="fas fa-trash"></i>
@@ -310,6 +329,35 @@
                                 <asp:Label ID="lblViewAssignedTo" runat="server" />
                             </p>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Assigned To Role</label>
+                            <p class="form-control-plaintext">
+                                <asp:Label ID="lblViewAssignedToRole" runat="server" />
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="remarks-section">
+                        <div class="remarks-title">
+                            <i class="fas fa-comments mr-2"></i>Support Remarks
+                        </div>
+                        <asp:Repeater ID="rptRemarks" runat="server">
+                            <ItemTemplate>
+                                <div class="remark-item">
+                                    <div class="remark-header">
+                                        <span class="remark-author"><%# Eval("FULL_NAME") %></span>
+                                        <span class="text-muted ml-2">•</span>
+                                        <span class="text-muted ml-2"><%# Convert.ToDateTime(Eval("CREATED_AT")).ToString("MMM dd, yyyy hh:mm tt") %></span>
+                                    </div>
+                                    <div class="remark-text">
+                                        <%# Eval("REMARK_TEXT") %>
+                                    </div>
+                                </div>
+                            </ItemTemplate>
+                        </asp:Repeater>
+                        <asp:Panel ID="pnlNoRemarks" runat="server" Visible="false" CssClass="no-remarks">
+                            <i class="fas fa-info-circle mr-2"></i>No remarks have been added to this ticket yet.
+                        </asp:Panel>
                     </div>
                 </div>
                 <div class="modal-footer">

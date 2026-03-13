@@ -10,15 +10,15 @@
     .btn-create { background: linear-gradient(135deg, #001f54, #003087); color: white; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; }
     .btn-create:hover { background: linear-gradient(135deg, #003087, #0041a8); color: white; }
     .badge-pending-approval { background: #6c757d; color: white; }
-    .badge-open { background: #001f54; color: white; }
+    .badge-open { background: #ffc107; color: #333; }
     .badge-in-progress { background: #007bff; color: white; }
     .badge-resolved { background: #28a745; color: white; }
     .badge-closed { background: #343a40; color: white; }
     .badge-overdue { background: #dc3545; color: white; }
-    .badge-low { background: #28a745; color: white; }
+    .badge-low { background: #007bff; color: white; }
     .badge-medium { background: #ffc107; color: #333; }
     .badge-high { background: #fd7e14; color: white; }
-    .badge-critical { background: #dc3545; color: white; }
+    .badge-urgent { background: #dc3545; color: white; }
     .badge-not-set { background: #dee2e6; color: #555; }
     .table th { background: #001f54; color: white; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
     .table td { font-size: 13px; vertical-align: middle; }
@@ -96,7 +96,7 @@
                         <asp:ListItem Value="Low">Low</asp:ListItem>
                         <asp:ListItem Value="Medium">Medium</asp:ListItem>
                         <asp:ListItem Value="High">High</asp:ListItem>
-                        <asp:ListItem Value="Critical">Critical</asp:ListItem>
+                        <asp:ListItem Value="Urgent">Urgent</asp:ListItem>
                     </asp:DropDownList>
                 </div>
             </div>
@@ -112,7 +112,6 @@
                                     <th>Title</th>
                                     <th>Status</th>
                                     <th>Priority</th>
-                                    <th>Category</th>
                                     <th>Created By</th>
                                     <th>Assigned To</th>
                                     <th>Date</th>
@@ -135,7 +134,6 @@
                                     <%# string.IsNullOrEmpty(Eval("PRIORITY").ToString()) ? "Not Set" : Eval("PRIORITY").ToString() %>
                                 </span>
                             </td>
-                            <td><%# string.IsNullOrEmpty(Eval("CATEGORY").ToString()) ? "-" : Eval("CATEGORY").ToString() %></td>
                             <td><%# Eval("CREATED_BY_NAME") %></td>
                             <td><%# string.IsNullOrEmpty(Eval("ASSIGNED_TO_NAME").ToString()) ? "<span style='color:#aaa;'>Unassigned</span>" : Eval("ASSIGNED_TO_NAME").ToString() %></td>
                             <td><%# Convert.ToDateTime(Eval("CREATED_AT")).ToString("MM/dd/yyyy") %></td>

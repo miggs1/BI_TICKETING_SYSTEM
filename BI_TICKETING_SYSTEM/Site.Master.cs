@@ -28,14 +28,17 @@ namespace BI_TICKETING_SYSTEM
                 switch (role.ToLower())
                 {
                     case "admin":
+                        pnlTicketsMenu.Visible = true;
                         pnlAdminMenu.Visible = true;
                         pnlSupportMenu.Visible = true;
                         break;
                     case "support":
+                        pnlTicketsMenu.Visible = false;
                         pnlAdminMenu.Visible = false;
                         pnlSupportMenu.Visible = true;
                         break;
-                    default: // Regular user
+                    default:
+                        pnlTicketsMenu.Visible = true;
                         pnlAdminMenu.Visible = false;
                         pnlSupportMenu.Visible = false;
                         break;

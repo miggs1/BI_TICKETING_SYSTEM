@@ -23,7 +23,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
         protected void Page_Load(object sender, EventArgs e)
         {
-            if (Session["UserName"] == null)
+            if (Session["UserName"] == null || Session["UserID"] == null || Session["UserRole"] == null)
             {
                 Response.Redirect("~/Login.aspx");
                 return;
@@ -62,7 +62,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     string sql = @"
                         SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
-                               T.CATEGORY, T.CREATED_AT, T.UPDATED_AT, T.CREATED_BY_USER_ID, T.ASSIGNED_TO_USER_ID,
+                               T.CREATED_AT, T.UPDATED_AT, T.CREATED_BY_USER_ID, T.ASSIGNED_TO_USER_ID,
                                U.FULL_NAME AS CREATED_BY_NAME, U.ROLE AS CREATED_BY_ROLE,
                                A.FULL_NAME AS ASSIGNED_TO_NAME
                         FROM BI_OJT.TICKETS T
@@ -151,6 +151,16 @@ namespace BI_TICKETING_SYSTEM.Pages
                         ddlRowStatus.SelectedValue = currentStatus;
                 }
 
+                DropDownList ddlRowPriority = (DropDownList)e.Item.FindControl("ddlRowPriority");
+                if (ddlRowPriority != null && ddlRowPriority.Visible)
+                {
+                    string currentPriority = row["PRIORITY"]?.ToString()?.ToUpper() ?? "";
+                    if (!string.IsNullOrEmpty(currentPriority) && ddlRowPriority.Items.FindByValue(currentPriority) != null)
+                        ddlRowPriority.SelectedValue = currentPriority;
+                    else
+                        ddlRowPriority.SelectedValue = "";
+                }
+
                 DropDownList ddlRowAssign = (DropDownList)e.Item.FindControl("ddlRowAssign");
                 if (ddlRowAssign != null && ddlRowAssign.Visible)
                 {
@@ -216,8 +226,18 @@ namespace BI_TICKETING_SYSTEM.Pages
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
 
                     string sql = @"UPDATE BI_OJT.TICKETS 
-                                   SET STATUS = :status, UPDATED_AT = SYSDATE 
-                                   WHERE TICKET_ID = :ticketId";
+                                   SET STATUS = :status, UPDATED_AT = SYSDATE";
+
+                    if (newStatus.Equals("Resolved", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sql += ", RESOLVED_AT = SYSDATE";
+                    }
+                    else if (newStatus.Equals("Closed", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sql += ", CLOSED_AT = SYSDATE";
+                    }
+
+                    sql += " WHERE TICKET_ID = :ticketId";
 
                     using (var cmd = new OracleCommand(sql, conn))
                     {
@@ -279,6 +299,49 @@ namespace BI_TICKETING_SYSTEM.Pages
             catch (Exception ex)
             {
                 ShowError("Error updating assignment: " + ex.Message);
+                LoadTickets();
+            }
+        }
+
+        protected void ddlRowPriority_Changed(object sender, EventArgs e)
+        {
+            DropDownList ddl = (DropDownList)sender;
+            RepeaterItem item = (RepeaterItem)ddl.NamingContainer;
+            HiddenField hf = (HiddenField)item.FindControl("hfRowTicketId");
+
+            int ticketId = Convert.ToInt32(hf.Value);
+            string newPriority = ddl.SelectedValue;
+
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    var oldSnap = GetTicketSnapshot(ticketId, conn);
+
+                    string sql = @"UPDATE BI_OJT.TICKETS 
+                                   SET PRIORITY = :priority, UPDATED_AT = SYSDATE 
+                                   WHERE TICKET_ID = :ticketId";
+
+                    using (var cmd = new OracleCommand(sql, conn))
+                    {
+                        cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value =
+                            string.IsNullOrEmpty(newPriority) ? (object)DBNull.Value : newPriority;
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    var newSnap = GetTicketSnapshot(ticketId, conn);
+                    AuditHelper.LogAction(CurrentUserID, "UPDATE_PRIORITY", "TICKETS", ticketId, oldSnap, newSnap);
+
+                    ShowSuccess("Priority updated successfully!");
+                    LoadTickets();
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error updating priority: " + ex.Message);
                 LoadTickets();
             }
         }
@@ -358,7 +421,8 @@ namespace BI_TICKETING_SYSTEM.Pages
                     conn.Open();
                     string sql = @"SELECT T.*, 
                                    U.FULL_NAME AS CREATED_BY_NAME,
-                                   A.FULL_NAME AS ASSIGNED_TO_NAME
+                                   A.FULL_NAME AS ASSIGNED_TO_NAME,
+                                   A.ROLE AS ASSIGNED_TO_ROLE
                                    FROM BI_OJT.TICKETS T
                                    LEFT JOIN BI_OJT.USERS U ON T.CREATED_BY_USER_ID = U.USER_ID
                                    LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
@@ -381,6 +445,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                         lblViewCreatedBy.Text = row["CREATED_BY_NAME"].ToString();
                         lblViewCreatedDate.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
                         lblViewAssignedTo.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString();
+                        lblViewAssignedToRole.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_ROLE"].ToString()) ? "-" : row["ASSIGNED_TO_ROLE"].ToString();
+
+                        LoadTicketRemarks(ticketId, conn);
 
                         hfShowModal.Value = "view";
                         LoadTickets();
@@ -390,6 +457,44 @@ namespace BI_TICKETING_SYSTEM.Pages
             catch (Exception ex)
             {
                 ShowError("Error loading ticket details: " + ex.Message);
+            }
+        }
+
+        private void LoadTicketRemarks(int ticketId, OracleConnection conn)
+        {
+            try
+            {
+                string sql = @"SELECT TR.REMARK_TEXT, TR.CREATED_AT, U.FULL_NAME
+                               FROM BI_OJT.TICKET_REMARKS TR
+                               LEFT JOIN BI_OJT.USERS U ON TR.USER_ID = U.USER_ID
+                               WHERE TR.TICKET_ID = :ticketId
+                               ORDER BY TR.CREATED_AT ASC";
+
+                OracleCommand cmd = new OracleCommand(sql, conn);
+                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                OracleDataAdapter da = new OracleDataAdapter(cmd);
+                DataTable dtRemarks = new DataTable();
+                da.Fill(dtRemarks);
+
+                if (dtRemarks.Rows.Count > 0)
+                {
+                    rptRemarks.DataSource = dtRemarks;
+                    rptRemarks.DataBind();
+                    pnlNoRemarks.Visible = false;
+                }
+                else
+                {
+                    rptRemarks.DataSource = null;
+                    rptRemarks.DataBind();
+                    pnlNoRemarks.Visible = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                pnlNoRemarks.Visible = true;
+                rptRemarks.DataSource = null;
+                rptRemarks.DataBind();
             }
         }
 
@@ -423,19 +528,10 @@ namespace BI_TICKETING_SYSTEM.Pages
                     int createdBy = Convert.ToInt32(ticketRow["CREATED_BY_USER_ID"]);
                     string createdByRole = ticketRow["CREATED_BY_ROLE"].ToString().ToLower();
 
-                    if (CurrentRole.ToLower() == "user")
+                    if (CurrentRole.ToLower() != "admin")
                     {
-                        if (createdByRole == "admin")
-                        {
-                            ShowError("You cannot delete tickets created by Admin.");
-                            return;
-                        }
-
-                        if (createdBy != CurrentUserID)
-                        {
-                            ShowError("You can only delete your own tickets.");
-                            return;
-                        }
+                        ShowError("Only Admins can delete tickets.");
+                        return;
                     }
 
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
@@ -523,7 +619,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 case "low": return "badge-low";
                 case "medium": return "badge-medium";
                 case "high": return "badge-high";
-                case "critical": return "badge-critical";
+                case "urgent": return "badge-urgent";
                 default: return "badge-not-set";
             }
         }

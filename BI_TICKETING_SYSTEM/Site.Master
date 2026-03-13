@@ -89,12 +89,14 @@
                             <p>Dashboard</p>
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a href="~/Pages/Tickets.aspx" runat="server" class="nav-link">
-                            <i class="nav-icon fas fa-ticket-alt"></i>
-                            <p>Tickets</p>
-                        </a>
-                    </li>
+                    <asp:Panel ID="pnlTicketsMenu" runat="server">
+                        <li class="nav-item">
+                            <a href="~/Pages/Tickets.aspx" runat="server" class="nav-link">
+                                <i class="nav-icon fas fa-ticket-alt"></i>
+                                <p>Tickets</p>
+                            </a>
+                        </li>
+                    </asp:Panel>
 
                     <asp:Panel ID="pnlAdminMenu" runat="server" Visible="false">
                         <li class="nav-header">ADMIN</li>

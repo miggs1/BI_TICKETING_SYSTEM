@@ -72,6 +72,12 @@ namespace BI_TICKETING_SYSTEM.Pages
 
         protected global::System.Web.UI.WebControls.Label lblViewAssignedTo;
 
+        protected global::System.Web.UI.WebControls.Label lblViewAssignedToRole;
+
+        protected global::System.Web.UI.WebControls.Repeater rptRemarks;
+
+        protected global::System.Web.UI.WebControls.Panel pnlNoRemarks;
+
         protected global::System.Web.UI.WebControls.HiddenField hfShowModal;
 
         protected global::System.Web.UI.WebControls.HiddenField hfSwalMessage;

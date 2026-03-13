@@ -62,7 +62,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     string sql = @"
                         SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
-                               T.CATEGORY, T.CREATED_AT,
+                               T.CREATED_AT,
                                U.FULL_NAME AS CREATED_BY_NAME,
                                A.FULL_NAME AS ASSIGNED_TO_NAME
                         FROM BI_OJT.TICKETS T
@@ -652,7 +652,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 case "low": return "badge-low";
                 case "medium": return "badge-medium";
                 case "high": return "badge-high";
-                case "critical": return "badge-critical";
+                case "urgent": return "badge-urgent";
                 default: return "badge-not-set";
             }
         }
