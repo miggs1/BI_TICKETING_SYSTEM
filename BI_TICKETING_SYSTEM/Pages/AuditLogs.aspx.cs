@@ -28,234 +28,196 @@ namespace BI_TICKETING_SYSTEM.Pages
                 LoadAuditLogs();
             }
         }
-
         private void LoadAuditLogs(string sortExpression = "")
         {
-            string query = @"
-                            SELECT 
-                                U.FULL_NAME,
-                                A.ACTION,
-                                A.OLD_VALUE,
-                                A.NEW_VALUE,
-                                A.CREATED_AT
-                            FROM AUDIT_LOGS A
-                            JOIN USERS U ON A.USER_ID = U.USER_ID
-                            WHERE 1=1
-                            ";
-
-            if (!string.IsNullOrEmpty(ddlUser.SelectedValue))
-                query += " AND U.USER_ID = :UserId";
-
-            if (!string.IsNullOrEmpty(ddlAction.SelectedValue))
-                query += " AND A.ACTION = :Action";
-
-            if (!string.IsNullOrEmpty(txtDateFrom.Text))
-                query += " AND A.CREATED_AT >= :DateFrom";
-
-            if (!string.IsNullOrEmpty(txtDateTo.Text))
-                query += " AND A.CREATED_AT <= :DateTo";
-
-            if (!string.IsNullOrEmpty(sortExpression))
-                query += " ORDER BY " + sortExpression;
-            else
-                query += " ORDER BY A.CREATED_AT DESC";
-
-            DataTable dt = new DataTable();
+            DataTable dtRaw = new DataTable();
 
             using (OracleConnection conn = new OracleConnection(connectionString))
-            using (OracleCommand cmd = new OracleCommand(query, conn))
             {
-                // Add parameters with appropriate types
+                string query = @"
+                                SELECT 
+                                    U.FULL_NAME,
+                                    A.ACTION,
+                                    A.TABLE_NAME,
+                                    A.TICKET_ID,
+                                    A.OLD_VALUE,
+                                    A.NEW_VALUE,
+                                    A.CREATED_AT
+                                FROM AUDIT_LOGS A
+                                JOIN USERS U ON A.USER_ID = U.USER_ID
+                                WHERE 1=1";
+
                 if (!string.IsNullOrEmpty(ddlUser.SelectedValue))
-                    cmd.Parameters.Add("UserId", OracleDbType.Int32).Value = Convert.ToInt32(ddlUser.SelectedValue);
+                    query += " AND U.USER_ID = :UserId";
 
                 if (!string.IsNullOrEmpty(ddlAction.SelectedValue))
-                    cmd.Parameters.Add("Action", OracleDbType.Varchar2).Value = ddlAction.SelectedValue;
+                    query += " AND A.ACTION = :Action";
 
                 if (!string.IsNullOrEmpty(txtDateFrom.Text))
-                {
-                    if (DateTime.TryParse(txtDateFrom.Text, out DateTime dtFrom))
-                        cmd.Parameters.Add("DateFrom", OracleDbType.Date).Value = dtFrom;
-                    else
-                        cmd.Parameters.Add("DateFrom", OracleDbType.Varchar2).Value = txtDateFrom.Text;
-                }
+                    query += " AND A.CREATED_AT >= :DateFrom";
 
                 if (!string.IsNullOrEmpty(txtDateTo.Text))
-                {
-                    if (DateTime.TryParse(txtDateTo.Text, out DateTime dtTo))
-                        cmd.Parameters.Add("DateTo", OracleDbType.Date).Value = dtTo;
-                    else
-                        cmd.Parameters.Add("DateTo", OracleDbType.Varchar2).Value = txtDateTo.Text;
-                }
+                    query += " AND A.CREATED_AT <= :DateTo";
 
-                OracleDataAdapter da = new OracleDataAdapter(cmd);
-                da.Fill(dt);
+                using (OracleCommand cmd = new OracleCommand(query, conn))
+                {
+                    if (!string.IsNullOrEmpty(ddlUser.SelectedValue))
+                        cmd.Parameters.Add("UserId", OracleDbType.Int32).Value = Convert.ToInt32(ddlUser.SelectedValue);
+
+                    if (!string.IsNullOrEmpty(ddlAction.SelectedValue))
+                        cmd.Parameters.Add("Action", OracleDbType.Varchar2).Value = ddlAction.SelectedValue;
+
+                    if (!string.IsNullOrEmpty(txtDateFrom.Text) && DateTime.TryParse(txtDateFrom.Text, out DateTime dtFrom))
+                        cmd.Parameters.Add("DateFrom", OracleDbType.Date).Value = dtFrom;
+
+                    if (!string.IsNullOrEmpty(txtDateTo.Text) && DateTime.TryParse(txtDateTo.Text, out DateTime dtTo))
+                        cmd.Parameters.Add("DateTo", OracleDbType.Date).Value = dtTo;
+
+                    OracleDataAdapter da = new OracleDataAdapter(cmd);
+                    da.Fill(dtRaw);
+                }
             }
 
-            // Prepare user mapping for IDs found in JSON old/new
+            // Collect referenced IDs
             var userIds = new HashSet<int>();
-            var oldJsons = new List<string>(dt.Rows.Count);
-            var newJsons = new List<string>(dt.Rows.Count);
-            var ticketIds = new HashSet<int>(); // <- collect referenced ticket ids from ACTION context
+            var ticketIds = new HashSet<int>();
 
-            for (int r = 0; r < dt.Rows.Count; r++)
+            foreach (DataRow row in dtRaw.Rows)
             {
-                DataRow row = dt.Rows[r];
+                TryCollectUserIdsFromJson(Convert.ToString(row["OLD_VALUE"]), userIds);
+                TryCollectUserIdsFromJson(Convert.ToString(row["NEW_VALUE"]), userIds);
+
+                if (row["TABLE_NAME"]?.ToString() == "TICKETS" && row["TICKET_ID"] != DBNull.Value)
+                    ticketIds.Add(Convert.ToInt32(row["TICKET_ID"]));
+            }
+
+            var userMap = GetUserMap(userIds);
+            var ticketMap = GetTicketMap(ticketIds);
+
+            DataTable dtDisplay = dtRaw.Clone();
+            dtDisplay.Columns.Add("ACTION_TEXT", typeof(string));
+
+            foreach (DataRow row in dtRaw.Rows)
+            {
+                string action = Convert.ToString(row["ACTION"]);
+                int? ticketId = row["TICKET_ID"] != DBNull.Value ? Convert.ToInt32(row["TICKET_ID"]) : (int?)null;
+
+                string ticketNumber = ticketId.HasValue && ticketMap.TryGetValue(ticketId.Value, out var num)
+                    ? num
+                    : $"#{ticketId}";
+
                 string oldJson = Convert.ToString(row["OLD_VALUE"]);
                 string newJson = Convert.ToString(row["NEW_VALUE"]);
-                oldJsons.Add(oldJson);
-                newJsons.Add(newJson);
 
-                // collect user ids from JSON snapshots (existing behavior)
-                TryCollectUserIdsFromJson(oldJson, userIds);
-                TryCollectUserIdsFromJson(newJson, userIds);
+                JObject oldObj = TryParseJson(oldJson);
+                JObject newObj = TryParseJson(newJson);
 
-                // parse ACTION that may have been stored as "ACTION|TABLE|ID"
-                string actionRaw = Convert.ToString(row["ACTION"]);
-                if (!string.IsNullOrEmpty(actionRaw) && actionRaw.Contains("|"))
+                if (string.Equals(action, "LOGIN", StringComparison.OrdinalIgnoreCase))
                 {
-                    var parts = actionRaw.Split(new[] { '|' }, StringSplitOptions.None);
-                    if (parts.Length >= 3)
-                    {
-                        // parts[1] is table name, parts[2] is record id
-                        if (string.Equals(parts[1], "TICKETS", StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (int.TryParse(parts[2], out int tid))
-                                ticketIds.Add(tid);
-                        }
-                    }
-                }
-            }
-
-            var userMap = new Dictionary<int, string>();
-            if (userIds.Count > 0)
-            {
-                using (OracleConnection conn = new OracleConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = $"SELECT USER_ID, FULL_NAME FROM BI_OJT.USERS WHERE USER_ID IN ({string.Join(",", userIds)})";
-                    using (OracleCommand cmd = new OracleCommand(sql, conn))
-                    {
-                        using (OracleDataReader rdr = cmd.ExecuteReader())
-                        {
-                            while (rdr.Read())
-                            {
-                                int id = Convert.ToInt32(rdr["USER_ID"]);
-                                string name = rdr["FULL_NAME"] == DBNull.Value ? "" : rdr["FULL_NAME"].ToString();
-                                userMap[id] = name;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Fetch ticket numbers for any referenced ticket ids so we can show them in messages
-            var ticketMap = new Dictionary<int, string>();
-            if (ticketIds.Count > 0)
-            {
-                using (OracleConnection conn = new OracleConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = $"SELECT TICKET_ID, TICKET_NUMBER FROM BI_OJT.TICKETS WHERE TICKET_ID IN ({string.Join(",", ticketIds)})";
-                    using (OracleCommand cmd = new OracleCommand(sql, conn))
-                    {
-                        using (OracleDataReader rdr = cmd.ExecuteReader())
-                        {
-                            while (rdr.Read())
-                            {
-                                int id = Convert.ToInt32(rdr["TICKET_ID"]);
-                                string number = rdr["TICKET_NUMBER"] == DBNull.Value ? $"#{id}" : rdr["TICKET_NUMBER"].ToString();
-                                ticketMap[id] = number;
-                            }
-                        }
-                    }
-                }
-            }
-
-            dt.Columns.Add("ACTION_TEXT");
-
-            for (int i = 0; i < dt.Rows.Count; i++)
-            {
-                DataRow row = dt.Rows[i];
-                string actionRaw = Convert.ToString(row["ACTION"]);
-                string baseAction = actionRaw;
-                int? referencedRecordId = null;
-
-                // If action uses the stored "action|table|id" format, extract base action and record id
-                if (!string.IsNullOrEmpty(actionRaw) && actionRaw.Contains("|"))
-                {
-                    var parts = actionRaw.Split(new[] { '|' }, StringSplitOptions.None);
-                    baseAction = parts[0];
-                    if (parts.Length >= 3 && int.TryParse(parts[2], out int rid))
-                        referencedRecordId = rid;
-                }
-
-                string oldVal = oldJsons[i];
-                string newVal = newJsons[i];
-
-                // Default messages for non-ticket actions or fallback
-                if (string.Equals(baseAction, "LOGIN", StringComparison.OrdinalIgnoreCase))
-                {
-                    row["ACTION_TEXT"] = $"{row["FULL_NAME"]} logged into the system.";
+                    AddLogEntry(dtDisplay, row, $"{row["FULL_NAME"]} logged into the system.");
                     continue;
                 }
 
-                // If the action relates to tickets, try to parse JSON and show human-friendly differences
-                if (baseAction != null && baseAction.EndsWith("_TICKET", StringComparison.OrdinalIgnoreCase))
+                if (row["TABLE_NAME"]?.ToString() == "TICKETS")
                 {
-                    JObject oldObj = TryParseJson(oldVal);
-                    JObject newObj = TryParseJson(newVal);
-                    var changes = new List<string>();
+                    bool split = false;
 
-                    // Status
+                    // Status change
                     string oldStatus = oldObj?["STATUS"]?.ToString();
                     string newStatus = newObj?["STATUS"]?.ToString();
-                    if (!string.Equals(oldStatus, newStatus, StringComparison.Ordinal))
+                    if (oldStatus != newStatus)
                     {
-                        string ticketPrefix = referencedRecordId.HasValue && ticketMap.TryGetValue(referencedRecordId.Value, out var tnum)
-                            ? $"Ticket {tnum}: "
-                            : "";
-                        changes.Add($"{ticketPrefix}Status changed from {(string.IsNullOrEmpty(oldStatus) ? "-" : oldStatus)} to {(string.IsNullOrEmpty(newStatus) ? "-" : newStatus)}.");
+                        AddLogEntry(dtDisplay, row,
+                            $"Ticket {ticketNumber}: Status changed from {oldStatus ?? "-"} to {newStatus ?? "-"}");
+                        split = true;
                     }
 
-                    // Assigned to
-                    int? oldAssigned = oldObj?["ASSIGNED_TO_USER_ID"]?.Value<int?>();
-                    int? newAssigned = newObj?["ASSIGNED_TO_USER_ID"]?.Value<int?>();
-                    if (oldAssigned != newAssigned)
-                        changes.Add($"Assigned to changed from {MapUserName(oldAssigned, userMap)} to {MapUserName(newAssigned, userMap)}.");
+                    // Assignment change
+                    int? oldUser = oldObj?["ASSIGNED_TO_USER_ID"]?.Value<int?>();
+                    int? newUser = newObj?["ASSIGNED_TO_USER_ID"]?.Value<int?>();
 
-                    // Priority
+                    if (oldUser != newUser)
+                    {
+                        AddLogEntry(dtDisplay, row,
+                            $"Ticket {ticketNumber}: Assigned to changed from {MapUserName(oldUser, userMap)} to {MapUserName(newUser, userMap)}");
+                        split = true;
+                    }
+
+                    // Priority change
                     string oldPriority = oldObj?["PRIORITY"]?.ToString();
                     string newPriority = newObj?["PRIORITY"]?.ToString();
-                    if (!string.Equals(oldPriority, newPriority, StringComparison.Ordinal))
-                        changes.Add($"Priority changed from {(string.IsNullOrEmpty(oldPriority) ? "-" : oldPriority)} to {(string.IsNullOrEmpty(newPriority) ? "-" : newPriority)}.");
 
-                    // Created by (useful for CREATE_TICKET)
-                    int? createdBy = newObj?["CREATED_BY_USER_ID"]?.Value<int?>();
-                    if (string.Equals(baseAction, "CREATE_TICKET", StringComparison.OrdinalIgnoreCase))
+                    if (oldPriority != newPriority)
                     {
-                        string ticketInfo = referencedRecordId.HasValue && ticketMap.TryGetValue(referencedRecordId.Value, out var tnum) ? $" ({tnum})" : ".";
-                        changes.Add($"Ticket created by {MapUserName(createdBy, userMap)}{ticketInfo}");
+                        AddLogEntry(dtDisplay, row,
+                            $"Ticket {ticketNumber}: Priority changed from {oldPriority ?? "-"} to {newPriority ?? "-"}");
+                        split = true;
                     }
 
-                    if (string.Equals(baseAction, "DELETE_TICKET", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // If deleted, show who deleted it (user is in U.FULL_NAME) and optionally created_by in old
-                        changes.Add($"Ticket deleted by {row["FULL_NAME"]}");
-                    }
-
-                    row["ACTION_TEXT"] = changes.Count > 0 ? string.Join(" • ", changes) : $"{row["FULL_NAME"]} performed {baseAction}.";
-                    continue;
+                    if (!split)
+                        AddLogEntry(dtDisplay, row,
+                            $"{row["FULL_NAME"]} performed {action} on Ticket {ticketNumber}");
                 }
-
-                // Generic fallback
-                row["ACTION_TEXT"] = $"{row["FULL_NAME"]} performed {baseAction}.";
+                else
+                {
+                    AddLogEntry(dtDisplay, row,
+                        $"{row["FULL_NAME"]} performed {action}.");
+                }
             }
 
-            gvAuditLogs.DataSource = dt;
+            DataView dv = dtDisplay.DefaultView;
+            dv.Sort = !string.IsNullOrEmpty(sortExpression) ? sortExpression : "CREATED_AT DESC";
+
+            gvAuditLogs.DataSource = dv;
             gvAuditLogs.DataBind();
         }
 
+        // Support Method: Clones original row data and injects the specific activity text
+        private void AddLogEntry(DataTable target, DataRow source, string message)
+        {
+            DataRow newRow = target.NewRow();
+            newRow.ItemArray = source.ItemArray;
+            newRow["ACTION_TEXT"] = message;
+            target.Rows.Add(newRow);
+        }
+
+        // Helper: Fetches Ticket Numbers for IDs found in Logs
+        private Dictionary<int, string> GetTicketMap(HashSet<int> ids)
+        {
+            var map = new Dictionary<int, string>();
+            if (ids.Count == 0) return map;
+
+            using (OracleConnection conn = new OracleConnection(connectionString))
+            {
+                conn.Open();
+                string sql = $"SELECT TICKET_ID, TICKET_NUMBER FROM BI_OJT.TICKETS WHERE TICKET_ID IN ({string.Join(",", ids)})";
+                using (OracleCommand cmd = new OracleCommand(sql, conn))
+                using (OracleDataReader rdr = cmd.ExecuteReader())
+                {
+                    while (rdr.Read()) map[Convert.ToInt32(rdr["TICKET_ID"])] = rdr["TICKET_NUMBER"].ToString();
+                }
+            }
+            return map;
+        }
+
+        // Helper: Fetches User Names for IDs found in JSON
+        private Dictionary<int, string> GetUserMap(HashSet<int> ids)
+        {
+            var map = new Dictionary<int, string>();
+            if (ids.Count == 0) return map;
+
+            using (OracleConnection conn = new OracleConnection(connectionString))
+            {
+                conn.Open();
+                string sql = $"SELECT USER_ID, FULL_NAME FROM BI_OJT.USERS WHERE USER_ID IN ({string.Join(",", ids)})";
+                using (OracleCommand cmd = new OracleCommand(sql, conn))
+                using (OracleDataReader rdr = cmd.ExecuteReader())
+                {
+                    while (rdr.Read()) map[Convert.ToInt32(rdr["USER_ID"])] = rdr["FULL_NAME"].ToString();
+                }
+            }
+            return map;
+        }
         private static void TryCollectUserIdsFromJson(string json, HashSet<int> set)
         {
             if (string.IsNullOrEmpty(json)) return;

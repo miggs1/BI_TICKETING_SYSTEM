@@ -32,17 +32,38 @@ public static class AuditHelper
         }
     }
 
-    // New overload used by Tickets.aspx.cs which expects LogAction(...)
-    public static void LogAction(int userId, string action, string tableName, int recordId, Dictionary<string, object> oldSnap, Dictionary<string, object> newSnap)
+    public static void LogAction(int userId, string action, string tableName, int recordId,
+                                 Dictionary<string, object> oldSnap,
+                                 Dictionary<string, object> newSnap)
     {
+        if (userId <= 0) return;
+
         var serializer = new JavaScriptSerializer();
 
         string oldJson = oldSnap == null ? null : serializer.Serialize(oldSnap);
         string newJson = newSnap == null ? null : serializer.Serialize(newSnap);
 
-        // Preserve table and record context by appending to action (no DB schema changes required)
-        string actionWithContext = $"{action}|{tableName}|{recordId}";
+        using (var conn = DatabaseHelper.GetConnection())
+        {
+            conn.Open();
 
-        Log(userId, actionWithContext, oldJson, newJson);
+            string sql = @"INSERT INTO BI_OJT.AUDIT_LOGS
+                      (USER_ID, ACTION, TABLE_NAME, TICKET_ID, OLD_VALUE, NEW_VALUE, CREATED_AT)
+                      VALUES (:userId, :action, :tableName, :recordId, :oldVal, :newVal, SYSDATE)";
+
+            using (var cmd = new OracleCommand(sql, conn))
+            {
+                cmd.BindByName = true;
+
+                cmd.Parameters.Add(":userId", OracleDbType.Int32).Value = userId;
+                cmd.Parameters.Add(":action", OracleDbType.Varchar2).Value = action;
+                cmd.Parameters.Add(":tableName", OracleDbType.Varchar2).Value = tableName ?? (object)DBNull.Value;
+                cmd.Parameters.Add(":recordId", OracleDbType.Int32).Value = recordId;
+                cmd.Parameters.Add(":oldVal", OracleDbType.Clob).Value = (object)oldJson ?? DBNull.Value;
+                cmd.Parameters.Add(":newVal", OracleDbType.Clob).Value = (object)newJson ?? DBNull.Value;
+
+                cmd.ExecuteNonQuery();
+            }
+        }
     }
 }
