@@ -166,7 +166,9 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
 
             DataView dv = dtDisplay.DefaultView;
-            dv.Sort = !string.IsNullOrEmpty(sortExpression) ? sortExpression : "CREATED_AT DESC";
+            dv.Sort = !string.IsNullOrEmpty(sortExpression)
+                        ? sortExpression
+                        : $"{SortColumn} {SortDirection}";
 
             gvAuditLogs.DataSource = dv;
             gvAuditLogs.DataBind();
@@ -256,12 +258,34 @@ namespace BI_TICKETING_SYSTEM.Pages
 
         protected void gvAuditLogs_Sorting(object sender, GridViewSortEventArgs e)
         {
-            LoadAuditLogs(e.SortExpression);
+            if (SortColumn == e.SortExpression)
+            {
+                SortDirection = SortDirection == "ASC" ? "DESC" : "ASC";
+            }
+            else
+            {
+                SortColumn = e.SortExpression;
+                SortDirection = "ASC";
+            }
+
+            LoadAuditLogs($"{SortColumn} {SortDirection}");
         }
 
         protected void btnFilter_Click(object sender, EventArgs e)
         {
             LoadAuditLogs();
+        }
+
+        private string SortDirection
+        {
+            get { return ViewState["SortDirection"] as string ?? "DESC"; }
+            set { ViewState["SortDirection"] = value; }
+        }
+
+        private string SortColumn
+        {
+            get { return ViewState["SortColumn"] as string ?? "CREATED_AT"; }
+            set { ViewState["SortColumn"] = value; }
         }
 
         private void LoadUsers()
