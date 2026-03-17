@@ -32,14 +32,13 @@ public static class AuditHelper
         }
     }
 
-    public static void LogAction(int userId, string action, string tableName, int recordId,
-                                 Dictionary<string, object> oldSnap,
-                                 Dictionary<string, object> newSnap)
+    public static void LogAction(int userId, string action, string tableName, int recordId, Dictionary<string, object> oldSnap, Dictionary<string, object> newSnap)
     {
         if (userId <= 0) return;
 
         var serializer = new JavaScriptSerializer();
 
+        // Serialize to JSON strings
         string oldJson = oldSnap == null ? null : serializer.Serialize(oldSnap);
         string newJson = newSnap == null ? null : serializer.Serialize(newSnap);
 
@@ -47,20 +46,22 @@ public static class AuditHelper
         {
             conn.Open();
 
-            string sql = @"INSERT INTO BI_OJT.AUDIT_LOGS
-                      (USER_ID, ACTION, TABLE_NAME, TICKET_ID, OLD_VALUE, NEW_VALUE, CREATED_AT)
+            // Use the specific columns for Table and ID
+            string sql = @"INSERT INTO BI_OJT.AUDIT_LOGS 
+                      (USER_ID, ACTION, TABLE_NAME, TICKET_ID, OLD_VALUE, NEW_VALUE, CREATED_AT) 
                       VALUES (:userId, :action, :tableName, :recordId, :oldVal, :newVal, SYSDATE)";
 
             using (var cmd = new OracleCommand(sql, conn))
             {
                 cmd.BindByName = true;
-
                 cmd.Parameters.Add(":userId", OracleDbType.Int32).Value = userId;
                 cmd.Parameters.Add(":action", OracleDbType.Varchar2).Value = action;
                 cmd.Parameters.Add(":tableName", OracleDbType.Varchar2).Value = tableName ?? (object)DBNull.Value;
                 cmd.Parameters.Add(":recordId", OracleDbType.Int32).Value = recordId;
-                cmd.Parameters.Add(":oldVal", OracleDbType.Clob).Value = (object)oldJson ?? DBNull.Value;
-                cmd.Parameters.Add(":newVal", OracleDbType.Clob).Value = (object)newJson ?? DBNull.Value;
+
+                // Ensure these match your DB column types (CLOB or VARCHAR2)
+                cmd.Parameters.Add(":oldVal", OracleDbType.Varchar2).Value = (object)oldJson ?? DBNull.Value;
+                cmd.Parameters.Add(":newVal", OracleDbType.Varchar2).Value = (object)newJson ?? DBNull.Value;
 
                 cmd.ExecuteNonQuery();
             }

@@ -34,18 +34,19 @@ namespace BI_TICKETING_SYSTEM.Pages
 
             using (OracleConnection conn = new OracleConnection(connectionString))
             {
+                // 1. Ensure all columns are selected
                 string query = @"
-                                SELECT 
-                                    U.FULL_NAME,
-                                    A.ACTION,
-                                    A.TABLE_NAME,
-                                    A.TICKET_ID,
-                                    A.OLD_VALUE,
-                                    A.NEW_VALUE,
-                                    A.CREATED_AT
-                                FROM AUDIT_LOGS A
-                                JOIN USERS U ON A.USER_ID = U.USER_ID
-                                WHERE 1=1";
+                        SELECT 
+                            U.FULL_NAME,
+                            A.ACTION,
+                            A.TABLE_NAME,
+                            A.TICKET_ID,
+                            A.OLD_VALUE,
+                            A.NEW_VALUE,
+                            A.CREATED_AT
+                        FROM AUDIT_LOGS A
+                        JOIN USERS U ON A.USER_ID = U.USER_ID
+                        WHERE 1=1";
 
                 if (!string.IsNullOrEmpty(ddlUser.SelectedValue))
                     query += " AND U.USER_ID = :UserId";
@@ -63,112 +64,99 @@ namespace BI_TICKETING_SYSTEM.Pages
                 {
                     if (!string.IsNullOrEmpty(ddlUser.SelectedValue))
                         cmd.Parameters.Add("UserId", OracleDbType.Int32).Value = Convert.ToInt32(ddlUser.SelectedValue);
-
                     if (!string.IsNullOrEmpty(ddlAction.SelectedValue))
                         cmd.Parameters.Add("Action", OracleDbType.Varchar2).Value = ddlAction.SelectedValue;
+                    if (!string.IsNullOrEmpty(txtDateFrom.Text) && DateTime.TryParse(txtDateFrom.Text, out DateTime dFrom))
+                        cmd.Parameters.Add("DateFrom", OracleDbType.Date).Value = dFrom;
+                    if (!string.IsNullOrEmpty(txtDateTo.Text) && DateTime.TryParse(txtDateTo.Text, out DateTime dTo))
+                        cmd.Parameters.Add("DateTo", OracleDbType.Date).Value = dTo;
 
-                    if (!string.IsNullOrEmpty(txtDateFrom.Text) && DateTime.TryParse(txtDateFrom.Text, out DateTime dtFrom))
-                        cmd.Parameters.Add("DateFrom", OracleDbType.Date).Value = dtFrom;
-
-                    if (!string.IsNullOrEmpty(txtDateTo.Text) && DateTime.TryParse(txtDateTo.Text, out DateTime dtTo))
-                        cmd.Parameters.Add("DateTo", OracleDbType.Date).Value = dtTo;
-
-                    OracleDataAdapter da = new OracleDataAdapter(cmd);
-                    da.Fill(dtRaw);
+                    new OracleDataAdapter(cmd).Fill(dtRaw);
                 }
             }
 
-            // Collect referenced IDs
-            var userIds = new HashSet<int>();
+            // 2. Build Maps
             var ticketIds = new HashSet<int>();
-
+            var userIdsFromLog = new HashSet<int>();
             foreach (DataRow row in dtRaw.Rows)
             {
-                TryCollectUserIdsFromJson(Convert.ToString(row["OLD_VALUE"]), userIds);
-                TryCollectUserIdsFromJson(Convert.ToString(row["NEW_VALUE"]), userIds);
-
-                if (row["TABLE_NAME"]?.ToString() == "TICKETS" && row["TICKET_ID"] != DBNull.Value)
-                    ticketIds.Add(Convert.ToInt32(row["TICKET_ID"]));
+                if (row["TICKET_ID"] != DBNull.Value) ticketIds.Add(Convert.ToInt32(row["TICKET_ID"]));
+                TryCollectUserIdsFromJson(Convert.ToString(row["OLD_VALUE"]), userIdsFromLog);
+                TryCollectUserIdsFromJson(Convert.ToString(row["NEW_VALUE"]), userIdsFromLog);
             }
 
-            var userMap = GetUserMap(userIds);
+            var userMap = GetUserMap(userIdsFromLog);
             var ticketMap = GetTicketMap(ticketIds);
 
+            // 3. Create Display Table
             DataTable dtDisplay = dtRaw.Clone();
             dtDisplay.Columns.Add("ACTION_TEXT", typeof(string));
 
             foreach (DataRow row in dtRaw.Rows)
             {
                 string action = Convert.ToString(row["ACTION"]);
-                int? ticketId = row["TICKET_ID"] != DBNull.Value ? Convert.ToInt32(row["TICKET_ID"]) : (int?)null;
-
-                string ticketNumber = ticketId.HasValue && ticketMap.TryGetValue(ticketId.Value, out var num)
-                    ? num
-                    : $"#{ticketId}";
-
+                string tableName = Convert.ToString(row["TABLE_NAME"]);
                 string oldJson = Convert.ToString(row["OLD_VALUE"]);
                 string newJson = Convert.ToString(row["NEW_VALUE"]);
+                int? ticketId = row["TICKET_ID"] != DBNull.Value ? (int?)Convert.ToInt32(row["TICKET_ID"]) : null;
 
-                JObject oldObj = TryParseJson(oldJson);
-                JObject newObj = TryParseJson(newJson);
-
-                if (string.Equals(action, "LOGIN", StringComparison.OrdinalIgnoreCase))
+                if (tableName == "TICKETS")
                 {
-                    AddLogEntry(dtDisplay, row, $"{row["FULL_NAME"]} logged into the system.");
-                    continue;
-                }
+                    JObject oldObj = TryParseJson(oldJson);
+                    JObject newObj = TryParseJson(newJson);
+                    string ticketNumber = (ticketId.HasValue && ticketMap.TryGetValue(ticketId.Value, out var t)) ? t : $"#{ticketId}";
+                    bool splitOccurred = false;
 
-                if (row["TABLE_NAME"]?.ToString() == "TICKETS")
-                {
-                    bool split = false;
-
-                    // Status change
-                    string oldStatus = oldObj?["STATUS"]?.ToString();
-                    string newStatus = newObj?["STATUS"]?.ToString();
-                    if (oldStatus != newStatus)
+                    if (action.Contains("CREATE"))
                     {
-                        AddLogEntry(dtDisplay, row,
-                            $"Ticket {ticketNumber}: Status changed from {oldStatus ?? "-"} to {newStatus ?? "-"}");
-                        split = true;
+                        AddLogEntry(dtDisplay, row, $"Ticket {ticketNumber} was created by {row["FULL_NAME"]}");
                     }
-
-                    // Assignment change
-                    int? oldUser = oldObj?["ASSIGNED_TO_USER_ID"]?.Value<int?>();
-                    int? newUser = newObj?["ASSIGNED_TO_USER_ID"]?.Value<int?>();
-
-                    if (oldUser != newUser)
+                    else
                     {
-                        AddLogEntry(dtDisplay, row,
-                            $"Ticket {ticketNumber}: Assigned to changed from {MapUserName(oldUser, userMap)} to {MapUserName(newUser, userMap)}");
-                        split = true;
+
+                        // STATUS CHANGE
+                        string oldStatus = oldObj?["STATUS"]?.ToString();
+                        string newStatus = newObj?["STATUS"]?.ToString();
+                        if (oldStatus != newStatus)
+                        {
+                            AddLogEntry(dtDisplay, row, $"Ticket {ticketNumber}: Status changed from {oldStatus ?? "-"} to {newStatus ?? "-"}");
+                            splitOccurred = true;
+                        }
+
+                        // ASSIGNMENT CHANGE
+                        int? oldU = oldObj?["ASSIGNED_TO_USER_ID"]?.Value<int?>();
+                        int? newU = newObj?["ASSIGNED_TO_USER_ID"]?.Value<int?>();
+                        if (oldU != newU)
+                        {
+                            AddLogEntry(dtDisplay, row, $"Ticket {ticketNumber}: Assigned to changed from {MapUserName(oldU, userMap)} to {MapUserName(newU, userMap)}");
+                            splitOccurred = true;
+                        }
+
+                        // FALLBACK (Handles CREATE_TICKET, DELETE, or any other ticket action)
+                        if (!splitOccurred)
+                        {
+                            string cleanAction = action.Replace("_", " ");
+                            AddLogEntry(dtDisplay, row, $"{cleanAction}: Ticket {ticketNumber}");
+                        }
                     }
-
-                    // Priority change
-                    string oldPriority = oldObj?["PRIORITY"]?.ToString();
-                    string newPriority = newObj?["PRIORITY"]?.ToString();
-
-                    if (oldPriority != newPriority)
-                    {
-                        AddLogEntry(dtDisplay, row,
-                            $"Ticket {ticketNumber}: Priority changed from {oldPriority ?? "-"} to {newPriority ?? "-"}");
-                        split = true;
-                    }
-
-                    if (!split)
-                        AddLogEntry(dtDisplay, row,
-                            $"{row["FULL_NAME"]} performed {action} on Ticket {ticketNumber}");
                 }
                 else
                 {
-                    AddLogEntry(dtDisplay, row,
-                        $"{row["FULL_NAME"]} performed {action}.");
+                    // Non-ticket actions (Login, etc.)
+                    AddLogEntry(dtDisplay, row, $"{row["FULL_NAME"]} performed {action.Replace("_", " ")}");
                 }
             }
 
+            // 4. APPLY SORTING TO THE FINAL DISPLAY TABLE
             DataView dv = dtDisplay.DefaultView;
-            dv.Sort = !string.IsNullOrEmpty(sortExpression)
-                        ? sortExpression
-                        : $"{SortColumn} {SortDirection}";
+            if (!string.IsNullOrEmpty(sortExpression))
+            {
+                dv.Sort = sortExpression;
+            }
+            else
+            {
+                dv.Sort = $"{SortColumn} {SortDirection}";
+            }
 
             gvAuditLogs.DataSource = dv;
             gvAuditLogs.DataBind();
