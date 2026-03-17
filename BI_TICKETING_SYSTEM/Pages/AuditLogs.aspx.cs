@@ -48,13 +48,38 @@ namespace BI_TICKETING_SYSTEM.Pages
                         JOIN USERS U ON A.USER_ID = U.USER_ID
                         WHERE 1=1";
 
-                if (!string.IsNullOrEmpty(ddlUser.SelectedValue))
+                if (!string.IsNullOrEmpty(ddlUser.SelectedValue) && ddlUser.SelectedValue != "0")
                     query += " AND U.USER_ID = :UserId";
 
                 if (!string.IsNullOrEmpty(ddlAction.SelectedValue))
-                    query += " AND A.ACTION = :Action";
+                    switch (ddlAction.SelectedValue)
+                    {
+                        case "LOGIN":
+                            query += " AND A.ACTION = 'LOGIN'";
+                            break;
 
-                if (!string.IsNullOrEmpty(txtDateFrom.Text))
+                        case "TICKET_ASSIGNED":
+                            query += " AND A.ACTION = 'UPDATE_ASSIGNMENT'";
+                            break;
+
+                        case "TICKET_STATUS":
+                            query += " AND A.ACTION = 'UPDATE_STATUS'";
+                            break;
+
+                        case "TICKET_PRIORITY":
+                            query += " AND A.ACTION = 'UPDATE_PRIORITY'";
+                            break;
+
+                        case "REMARK":
+                            query += " AND A.ACTION = 'ADD_REMARK'";
+                            break;
+
+                        case "ALL_TICKET":
+                            query += " AND A.TABLE_NAME = 'TICKETS'";
+                            break;
+                    }
+
+            if (!string.IsNullOrEmpty(txtDateFrom.Text))
                     query += " AND A.CREATED_AT >= :DateFrom";
 
                 if (!string.IsNullOrEmpty(txtDateTo.Text))
@@ -62,8 +87,8 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                 using (OracleCommand cmd = new OracleCommand(query, conn))
                 {
-                    if (!string.IsNullOrEmpty(ddlUser.SelectedValue))
-                        cmd.Parameters.Add("UserId", OracleDbType.Int32).Value = Convert.ToInt32(ddlUser.SelectedValue);
+                    if (!string.IsNullOrEmpty(ddlUser.SelectedValue) && ddlUser.SelectedValue != "0")
+                        cmd.Parameters.Add("UserId", OracleDbType.Int32).Value = Convert.ToInt32(ddlUser.SelectedValue); 
                     if (!string.IsNullOrEmpty(ddlAction.SelectedValue))
                         cmd.Parameters.Add("Action", OracleDbType.Varchar2).Value = ddlAction.SelectedValue;
                     if (!string.IsNullOrEmpty(txtDateFrom.Text) && DateTime.TryParse(txtDateFrom.Text, out DateTime dFrom))
@@ -100,7 +125,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 string newJson = Convert.ToString(row["NEW_VALUE"]);
                 int? ticketId = row["TICKET_ID"] != DBNull.Value ? (int?)Convert.ToInt32(row["TICKET_ID"]) : null;
 
-                if (tableName == "TICKETS")
+                if (tableName == "TICKETS" || tableName == "TICKET_REMARKS")
                 {
                     JObject oldObj = TryParseJson(oldJson);
                     JObject newObj = TryParseJson(newJson);
@@ -123,6 +148,15 @@ namespace BI_TICKETING_SYSTEM.Pages
                             splitOccurred = true;
                         }
 
+                        // PRIORITY CHANGE
+                        string oldPri = oldObj?["PRIORITY"]?.ToString();
+                        string newPri = newObj?["PRIORITY"]?.ToString();
+                        if (oldPri != newPri)
+                        {
+                            AddLogEntry(dtDisplay, row, $"Ticket {ticketNumber}: Priority changed from {oldPri ?? "-"} to {newPri ?? "-"}");
+                            splitOccurred = true;
+                        }
+
                         // ASSIGNMENT CHANGE
                         int? oldU = oldObj?["ASSIGNED_TO_USER_ID"]?.Value<int?>();
                         int? newU = newObj?["ASSIGNED_TO_USER_ID"]?.Value<int?>();
@@ -136,15 +170,38 @@ namespace BI_TICKETING_SYSTEM.Pages
                         if (action == "ADD_REMARK")
                         {
                             string remarkSnippet = newObj?["REMARK_TEXT"]?.ToString();
-                            if (remarkSnippet?.Length > 50) remarkSnippet = remarkSnippet.Substring(0, 47) + "...";
-                            AddLogEntry(dtDisplay, row, $"Added Remark to Ticket {ticketNumber}: \"{remarkSnippet}\"");
+
+                            if (remarkSnippet?.Length > 40) remarkSnippet = remarkSnippet.Substring(0, 37) + "...";
+
+                            AddLogEntry(dtDisplay, row, $"Ticket {ticketNumber}: Remark added - \"{remarkSnippet}\"");
                         }
 
-                        // FALLBACK (Handles CREATE_TICKET, DELETE, or any other ticket action)
+                        // FALLBACK 
                         if (!splitOccurred)
                         {
-                            string cleanAction = action.Replace("_", " ");
-                            AddLogEntry(dtDisplay, row, $"{cleanAction}: Ticket {ticketNumber}");
+                            switch (action)
+                            {
+                                case "UPDATE_PRIORITY":
+                                    AddLogEntry(dtDisplay, row,
+                                        $"Ticket {ticketNumber}: Priority updated");
+                                    break;
+
+                                case "UPDATE_ASSIGNMENT":
+                                    AddLogEntry(dtDisplay, row,
+                                        $"Ticket {ticketNumber}: Assignment updated");
+                                    break;
+
+                                case "UPDATE_STATUS":
+                                    AddLogEntry(dtDisplay, row,
+                                        $"Ticket {ticketNumber}: Status updated");
+                                    break;
+
+                                default:
+                                    string cleanAction = action.Replace("_", " ");
+                                    AddLogEntry(dtDisplay, row,
+                                        $"{cleanAction}: Ticket {ticketNumber}");
+                                    break;
+                            }
                         }
                     }
                 }

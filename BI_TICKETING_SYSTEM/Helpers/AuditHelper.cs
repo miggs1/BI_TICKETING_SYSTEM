@@ -59,9 +59,8 @@ public static class AuditHelper
                 cmd.Parameters.Add(":tableName", OracleDbType.Varchar2).Value = tableName ?? (object)DBNull.Value;
                 cmd.Parameters.Add(":recordId", OracleDbType.Int32).Value = recordId;
 
-                // Ensure these match your DB column types (CLOB or VARCHAR2)
-                cmd.Parameters.Add(":oldVal", OracleDbType.Varchar2).Value = (object)oldJson ?? DBNull.Value;
-                cmd.Parameters.Add(":newVal", OracleDbType.Varchar2).Value = (object)newJson ?? DBNull.Value;
+                cmd.Parameters.Add(":oldVal", OracleDbType.Clob).Value = (object)oldJson ?? DBNull.Value;
+                cmd.Parameters.Add(":newVal", OracleDbType.Clob).Value = (object)newJson ?? DBNull.Value;
 
                 cmd.ExecuteNonQuery();
             }

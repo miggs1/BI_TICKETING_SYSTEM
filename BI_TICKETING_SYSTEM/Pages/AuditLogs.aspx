@@ -21,14 +21,14 @@ Inherits="BI_TICKETING_SYSTEM.Pages.AuditLogs" %>
                 </asp:DropDownList>
             </div>
 
-            <div class="col-md-3">
-                <asp:DropDownList ID="ddlAction" runat="server" CssClass="form-control">
-                    <asp:ListItem Value="">All Actions</asp:ListItem>
-                    <asp:ListItem Value="LOGIN">Login</asp:ListItem>
-                    <asp:ListItem Value="ASSIGN_TICKET">Ticket Assigned</asp:ListItem>
-                    <asp:ListItem Value="STATUS_CHANGE">Ticket Status Change</asp:ListItem>
-                </asp:DropDownList>
-            </div>
+            <asp:DropDownList ID="ddlAction" runat="server">
+                <asp:ListItem Text="All Actions" Value="" />
+                <asp:ListItem Text="Login" Value="LOGIN" />
+                <asp:ListItem Text="Ticket Assigned" Value="TICKET_ASSIGNED" />
+                <asp:ListItem Text="Ticket Status Change" Value="TICKET_STATUS" />
+                <asp:ListItem Text="Priority Change" Value="TICKET_PRIORITY" />
+                <asp:ListItem Text="Remark Added" Value="REMARK" />
+            </asp:DropDownList>
 
             <div class="col-md-2">
                 <asp:TextBox ID="txtDateFrom" runat="server" CssClass="form-control" TextMode="Date"></asp:TextBox>
