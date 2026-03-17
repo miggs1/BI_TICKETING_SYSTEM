@@ -310,6 +310,11 @@ namespace BI_TICKETING_SYSTEM.Pages
                     conn.Open();
                     cmd.ExecuteNonQuery();
                 }
+                var newSnap = new Dictionary<string, object> {
+                { "REMARK_TEXT", remark },
+                { "TICKET_ID", ticketId }
+            };
+                AuditHelper.LogAction(CurrentUserID, "ADD_REMARK", "TICKET_REMARKS", ticketId, null, newSnap);
             }
 
             txtNewRemark.Text = "";

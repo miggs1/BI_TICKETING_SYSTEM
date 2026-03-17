@@ -132,6 +132,14 @@ namespace BI_TICKETING_SYSTEM.Pages
                             splitOccurred = true;
                         }
 
+                        // REMARK ADDED
+                        if (action == "ADD_REMARK")
+                        {
+                            string remarkSnippet = newObj?["REMARK_TEXT"]?.ToString();
+                            if (remarkSnippet?.Length > 50) remarkSnippet = remarkSnippet.Substring(0, 47) + "...";
+                            AddLogEntry(dtDisplay, row, $"Added Remark to Ticket {ticketNumber}: \"{remarkSnippet}\"");
+                        }
+
                         // FALLBACK (Handles CREATE_TICKET, DELETE, or any other ticket action)
                         if (!splitOccurred)
                         {
