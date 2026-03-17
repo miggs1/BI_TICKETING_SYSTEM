@@ -242,20 +242,7 @@
                             </p>
                         </div>
                     </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Priority</label>
-                            <p class="form-control-plaintext">
-                                <asp:Label ID="lblViewPriority" runat="server" />
-                            </p>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Category</label>
-                            <p class="form-control-plaintext">
-                                <asp:Label ID="lblViewCategory" runat="server" />
-                            </p>
-                        </div>
-                    </div>
+
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Created By</label>
@@ -387,11 +374,7 @@
                                     <asp:ListItem Value="Critical">Critical</asp:ListItem>
                                 </asp:DropDownList>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Category</label>
-                                <asp:TextBox ID="txtEditCategory" runat="server" CssClass="form-control" placeholder="Enter category" MaxLength="100" />
-                            </div>
-                        </div>
+                           
                     </asp:Panel>
 
                     <%-- Assign To - admin only --%>
@@ -425,12 +408,6 @@
                                     ControlToValidate="txtUserEditDescription"
                                     ErrorMessage="Description is required." ForeColor="Red" Display="Dynamic"
                                     ValidationGroup="EditTicket" Font-Size="11px" />
-                            </div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label class="form-label">Category</label>
-                                <asp:TextBox ID="txtUserEditCategory" runat="server" CssClass="form-control" MaxLength="100" placeholder="Enter category" />
                             </div>
                         </div>
                     </asp:Panel>

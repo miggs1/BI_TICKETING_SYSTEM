@@ -177,24 +177,6 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.Label lblViewDescription;
 
         /// <summary>
-        /// lblViewPriority control.
-        /// </summary>
-        /// <remarks>
-        /// Auto-generated field.
-        /// To modify move field declaration from designer file to code-behind file.
-        /// </remarks>
-        protected global::System.Web.UI.WebControls.Label lblViewPriority;
-
-        /// <summary>
-        /// lblViewCategory control.
-        /// </summary>
-        /// <remarks>
-        /// Auto-generated field.
-        /// To modify move field declaration from designer file to code-behind file.
-        /// </remarks>
-        protected global::System.Web.UI.WebControls.Label lblViewCategory;
-
-        /// <summary>
         /// lblViewCreatedBy control.
         /// </summary>
         /// <remarks>
@@ -366,15 +348,6 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.DropDownList ddlEditPriority;
 
         /// <summary>
-        /// txtEditCategory control.
-        /// </summary>
-        /// <remarks>
-        /// Auto-generated field.
-        /// To modify move field declaration from designer file to code-behind file.
-        /// </remarks>
-        protected global::System.Web.UI.WebControls.TextBox txtEditCategory;
-
-        /// <summary>
         /// pnlAssignTo control.
         /// </summary>
         /// <remarks>
@@ -436,15 +409,6 @@ namespace BI_TICKETING_SYSTEM.Pages
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
         protected global::System.Web.UI.WebControls.RequiredFieldValidator rfvUserEditDescription;
-
-        /// <summary>
-        /// txtUserEditCategory control.
-        /// </summary>
-        /// <remarks>
-        /// Auto-generated field.
-        /// To modify move field declaration from designer file to code-behind file.
-        /// </remarks>
-        protected global::System.Web.UI.WebControls.TextBox txtUserEditCategory;
 
         /// <summary>
         /// btnSaveEdit control.

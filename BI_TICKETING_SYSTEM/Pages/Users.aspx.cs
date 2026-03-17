@@ -37,7 +37,7 @@ namespace BI_TICKETING_SYSTEM.Pages
         private void LoadUsers()
         {
 
-            string search = txtSearch.Text.Trim();
+            string search = txtSearch.Text.Trim().ToLower();
 
             using (OracleConnection conn = DatabaseHelper.GetConnection())
             {
@@ -51,6 +51,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                         SELECT USER_ID, FULL_NAME, USERNAME, EMAIL, ROLE, STATUS, CREATED_AT
                         FROM USERS
                         WHERE LOWER(FULL_NAME) LIKE :search
+                           OR LOWER(USERNAME) LIKE :search
+                           OR LOWER(ROLE) LIKE :search
+                           OR LOWER(EMAIL) LIKE :search
                         ORDER BY CREATED_AT DESC
                     ) a
                     WHERE ROWNUM <= :maxRow
@@ -58,13 +61,14 @@ namespace BI_TICKETING_SYSTEM.Pages
                 WHERE rnum > :minRow";
 
                 OracleCommand cmd = new OracleCommand(query, conn);
+                cmd.BindByName = true;
 
                 int maxRow = CurrentPage * PageSize;
                 int minRow = (CurrentPage - 1) * PageSize;
 
-                cmd.Parameters.Add(":search", "%" + search.ToLower() + "%");
-                cmd.Parameters.Add(":maxRow", maxRow);
-                cmd.Parameters.Add(":minRow", minRow);
+                cmd.Parameters.Add("search", OracleDbType.Varchar2).Value = "%" + search + "%";
+                cmd.Parameters.Add("maxRow", OracleDbType.Int32).Value = maxRow;
+                cmd.Parameters.Add("minRow", OracleDbType.Int32).Value = minRow;
 
                 OracleDataAdapter da = new OracleDataAdapter(cmd);
                 DataTable dt = new DataTable();

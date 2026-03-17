@@ -53,6 +53,7 @@ namespace BI_TICKETING_SYSTEM.Pages
             string filterStatus = ddlFilterStatus.SelectedValue;
             string filterPriority = ddlFilterPriority.SelectedValue;
             int userId = CurrentUserID;
+            string role = CurrentRole.ToLower();
 
             try
             {
@@ -70,8 +71,14 @@ namespace BI_TICKETING_SYSTEM.Pages
                         LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
                         WHERE 1=1 ";
 
-                    // Always restrict to tickets assigned to the current user
-                    sql += " AND T.ASSIGNED_TO_USER_ID = :assignedTo ";
+                    if (role == "support")
+                    {
+                        sql += " AND T.ASSIGNED_TO_USER_ID = :assignedTo ";
+                    }
+                    else if (role == "admin")
+                    {
+                        sql += " AND T.ASSIGNED_TO_USER_ID IS NOT NULL ";
+                    }
 
                     if (!string.IsNullOrEmpty(search))
                         sql += " AND (UPPER(T.TICKET_NUMBER) LIKE UPPER(:search) OR UPPER(T.TITLE) LIKE UPPER(:search)) ";
@@ -85,7 +92,11 @@ namespace BI_TICKETING_SYSTEM.Pages
                     sql += " ORDER BY T.CREATED_AT DESC ";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = userId;
+
+                    if (role == "support")
+                    {
+                        cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = userId;
+                    }
 
                     if (!string.IsNullOrEmpty(search))
                         cmd.Parameters.Add("search", OracleDbType.Varchar2).Value = "%" + search + "%";
@@ -193,8 +204,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                         lblViewTitle.Text = row["TITLE"].ToString();
                         lblViewDescription.Text = row["DESCRIPTION"].ToString();
                         lblViewStatus.Text = row["STATUS"].ToString();
-                        lblViewPriority.Text = string.IsNullOrEmpty(row["PRIORITY"].ToString()) ? "Not Set" : row["PRIORITY"].ToString();
-                        lblViewCategory.Text = string.IsNullOrEmpty(row["CATEGORY"].ToString()) ? "-" : row["CATEGORY"].ToString();
                         lblViewCreatedBy.Text = row["CREATED_BY_NAME"].ToString();
                         lblViewCreatedDate.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
                         lblViewAssignedTo.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString();
@@ -385,13 +394,11 @@ namespace BI_TICKETING_SYSTEM.Pages
                             // Admin sees all fields
                             pnlEditTitle.Visible = true;
                             pnlEditDescription.Visible = true;
-                            pnlEditPriorityCategory.Visible = true;
                             pnlAssignTo.Visible = true;
                             pnlUserEdit.Visible = false;
 
                             txtEditTitle.Text = row["TITLE"].ToString();
                             txtEditDescription.Text = row["DESCRIPTION"].ToString();
-                            txtEditCategory.Text = row["CATEGORY"].ToString();
                             ddlEditPriority.SelectedValue = row["PRIORITY"].ToString();
 
                             LoadSupportUsers();
@@ -407,7 +414,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                             // Support only sees Status
                             pnlEditTitle.Visible = false;
                             pnlEditDescription.Visible = false;
-                            pnlEditPriorityCategory.Visible = false;
                             pnlAssignTo.Visible = false;
                             pnlUserEdit.Visible = false;
                         }
@@ -416,14 +422,12 @@ namespace BI_TICKETING_SYSTEM.Pages
                             // User sees Title, Description, Category only
                             pnlEditTitle.Visible = false;
                             pnlEditDescription.Visible = false;
-                            pnlEditPriorityCategory.Visible = false;
                             pnlAssignTo.Visible = false;
                             ddlEditStatus.Enabled = false;
                             pnlUserEdit.Visible = true;
 
                             txtUserEditTitle.Text = row["TITLE"].ToString();
                             txtUserEditDescription.Text = row["DESCRIPTION"].ToString();
-                            txtUserEditCategory.Text = row["CATEGORY"].ToString();
                         }
 
                         hfShowModal.Value = "edit";
@@ -468,14 +472,12 @@ namespace BI_TICKETING_SYSTEM.Pages
                         sql = @"UPDATE BI_OJT.TICKETS 
                         SET TITLE = :title,
                             DESCRIPTION = :description,
-                            CATEGORY = :category,
                             UPDATED_AT = SYSDATE
                         WHERE TICKET_ID = :ticketId";
 
                         cmd = new OracleCommand(sql, conn);
                         cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtUserEditTitle.Text.Trim();
                         cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtUserEditDescription.Text.Trim();
-                        cmd.Parameters.Add("category", OracleDbType.Varchar2).Value = string.IsNullOrEmpty(txtUserEditCategory.Text.Trim()) ? (object)DBNull.Value : txtUserEditCategory.Text.Trim();
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                     }
                     else
@@ -485,7 +487,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                             DESCRIPTION = :description,
                             STATUS = :status,
                             PRIORITY = :priority,
-                            CATEGORY = :category,
                             ASSIGNED_TO_USER_ID = :assignedTo,
                             UPDATED_AT = SYSDATE
                         WHERE TICKET_ID = :ticketId";
@@ -495,7 +496,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                         cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtEditDescription.Text.Trim();
                         cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = ddlEditStatus.SelectedValue;
                         cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value = string.IsNullOrEmpty(ddlEditPriority.SelectedValue) ? (object)DBNull.Value : ddlEditPriority.SelectedValue;
-                        cmd.Parameters.Add("category", OracleDbType.Varchar2).Value = string.IsNullOrEmpty(txtEditCategory.Text.Trim()) ? (object)DBNull.Value : txtEditCategory.Text.Trim();
                         cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = string.IsNullOrEmpty(ddlAssignTo.SelectedValue) ? (object)DBNull.Value : Convert.ToInt32(ddlAssignTo.SelectedValue);
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                     }
