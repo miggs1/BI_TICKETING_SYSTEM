@@ -1,10 +1,11 @@
-﻿using System;
+﻿using BI_TICKETING_SYSTEM.Helpers;
+using Oracle.ManagedDataAccess.Client;
+using System;
+using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.Web.UI;
 using System.Web.UI.WebControls;
-using Oracle.ManagedDataAccess.Client;
-using BI_TICKETING_SYSTEM.Helpers;
-using System.Collections.Generic;
 
 namespace BI_TICKETING_SYSTEM.Pages
 {
@@ -207,6 +208,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                         lblViewCreatedBy.Text = row["CREATED_BY_NAME"].ToString();
                         lblViewCreatedDate.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
                         lblViewAssignedTo.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString();
+                        lblViewPriority.Text = row["PRIORITY"] == DBNull.Value ? "N/A": System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(row["PRIORITY"]?.ToString().ToLower());
 
                         hfViewTicketId.Value = ticketId.ToString();
 
@@ -421,15 +423,17 @@ namespace BI_TICKETING_SYSTEM.Pages
                             pnlEditDescription.Visible = false;
                             pnlAssignTo.Visible = false;
                             pnlUserEdit.Visible = false;
+                            pnlEditPriorityCategory.Visible = false;
                         }
                         else if (CurrentRole.ToLower() == "user")
                         {
-                            // User sees Title, Description, Category only
+                            // User sees Title, Description, Priority only
                             pnlEditTitle.Visible = false;
                             pnlEditDescription.Visible = false;
                             pnlAssignTo.Visible = false;
                             ddlEditStatus.Enabled = false;
                             pnlUserEdit.Visible = true;
+                            pnlEditPriorityCategory.Visible = true;
 
                             txtUserEditTitle.Text = row["TITLE"].ToString();
                             txtUserEditDescription.Text = row["DESCRIPTION"].ToString();

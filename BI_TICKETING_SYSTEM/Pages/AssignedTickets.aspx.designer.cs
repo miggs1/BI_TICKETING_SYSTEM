@@ -204,6 +204,15 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.Label lblViewAssignedTo;
 
         /// <summary>
+        /// lblViewPriority control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Label lblViewPriority;
+
+        /// <summary>
         /// rptRemarks control.
         /// </summary>
         /// <remarks>

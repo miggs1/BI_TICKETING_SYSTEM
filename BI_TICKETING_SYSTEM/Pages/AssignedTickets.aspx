@@ -201,7 +201,7 @@
         </div>
     </div>
 
-    <!-- ===== VIEW TICKET MODAL (remarks added) ===== -->
+    <!-- ===== VIEW TICKET MODAL  ===== -->
     <div class="modal fade" id="modalViewTicket" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
@@ -212,6 +212,7 @@
                 <div class="modal-body">
                     <asp:HiddenField ID="hfViewTicketId" runat="server" />
 
+                     <%-- Ticket Number and Status --%>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Ticket Number</label>
@@ -234,6 +235,7 @@
                             </p>
                         </div>
                     </div>
+                     <%-- Description --%>
                     <div class="row mb-3">
                         <div class="col-12">
                             <label class="form-label">Description</label>
@@ -243,6 +245,7 @@
                         </div>
                     </div>
 
+                     <%-- Details --%>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Created By</label>
@@ -262,6 +265,12 @@
                             <label class="form-label">Assigned To</label>
                             <p class="form-control-plaintext">
                                 <asp:Label ID="lblViewAssignedTo" runat="server" />
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Priority</label>
+                            <p class="form-control-plaintext">
+                                <asp:Label ID="lblViewPriority" runat="server" />
                             </p>
                         </div>
                     </div>
@@ -388,6 +397,7 @@
                             </div>
                         </div>
                     </asp:Panel>
+
                     <%-- Title, Description, Category - user only --%>
                     <asp:Panel ID="pnlUserEdit" runat="server">
                         <div class="row mb-3">
