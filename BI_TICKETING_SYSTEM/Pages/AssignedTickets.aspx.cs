@@ -1,9 +1,12 @@
 ﻿using BI_TICKETING_SYSTEM.Helpers;
+using iTextSharp.text;
+using iTextSharp.text.pdf;
 using Oracle.ManagedDataAccess.Client;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
+using System.IO;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 
@@ -52,7 +55,6 @@ namespace BI_TICKETING_SYSTEM.Pages
         {
             string search = txtSearch.Text.Trim();
             string filterStatus = ddlFilterStatus.SelectedValue;
-            string filterPriority = ddlFilterPriority.SelectedValue;
             int userId = CurrentUserID;
             string role = CurrentRole.ToLower();
 
@@ -87,9 +89,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                     if (!string.IsNullOrEmpty(filterStatus))
                         sql += " AND UPPER(T.STATUS) = UPPER(:filterStatus) ";
 
-                    if (!string.IsNullOrEmpty(filterPriority))
-                        sql += " AND UPPER(T.PRIORITY) = UPPER(:filterPriority) ";
-
                     sql += " ORDER BY T.CREATED_AT DESC ";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
@@ -104,9 +103,6 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     if (!string.IsNullOrEmpty(filterStatus))
                         cmd.Parameters.Add("filterStatus", OracleDbType.Varchar2).Value = filterStatus;
-
-                    if (!string.IsNullOrEmpty(filterPriority))
-                        cmd.Parameters.Add("filterPriority", OracleDbType.Varchar2).Value = filterPriority;
 
                     OracleDataAdapter da = new OracleDataAdapter(cmd);
                     DataTable dt = new DataTable();
@@ -244,6 +240,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 ShowError("Error loading ticket details: " + ex.Message);
             }
         }
+
 
         // ===== LOAD REMARKS =====
         private void LoadRemarks(int ticketId)
@@ -573,11 +570,11 @@ namespace BI_TICKETING_SYSTEM.Pages
                     da.Fill(dt);
 
                     ddlAssignTo.Items.Clear();
-                    ddlAssignTo.Items.Add(new ListItem("-- Unassigned --", ""));
+                    ddlAssignTo.Items.Add(new System.Web.UI.WebControls.ListItem("-- Unassigned --", ""));
 
                     foreach (DataRow row in dt.Rows)
                     {
-                        ddlAssignTo.Items.Add(new ListItem(
+                        ddlAssignTo.Items.Add(new System.Web.UI.WebControls.ListItem(
                             row["FULL_NAME"].ToString(),
                             row["USER_ID"].ToString()
                         ));
@@ -624,6 +621,136 @@ namespace BI_TICKETING_SYSTEM.Pages
         {
             CurrentPage = 1;
             LoadTickets();
+        }
+
+        // ===== EXPORT =====
+        private DataTable GetFilteredTickets()
+        {
+            string search = txtSearch.Text.Trim();
+            string filterStatus = ddlFilterStatus.SelectedValue;
+            int userId = CurrentUserID;
+            string role = CurrentRole.ToLower();
+
+            using (OracleConnection conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+
+                string sql = @"
+            SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
+                   T.CREATED_AT,
+                   U.FULL_NAME AS CREATED_BY_NAME,
+                   A.FULL_NAME AS ASSIGNED_TO_NAME
+            FROM BI_OJT.TICKETS T
+            LEFT JOIN BI_OJT.USERS U ON T.CREATED_BY_USER_ID = U.USER_ID
+            LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
+            WHERE 1=1 ";
+
+                if (role == "support")
+                    sql += " AND T.ASSIGNED_TO_USER_ID = :assignedTo ";
+                else if (role == "admin")
+                    sql += " AND T.ASSIGNED_TO_USER_ID IS NOT NULL ";
+
+                if (!string.IsNullOrEmpty(search))
+                    sql += " AND (UPPER(T.TICKET_NUMBER) LIKE UPPER(:search) OR UPPER(T.TITLE) LIKE UPPER(:search)) ";
+
+                if (!string.IsNullOrEmpty(filterStatus))
+                    sql += " AND UPPER(T.STATUS) = UPPER(:filterStatus) ";
+
+                sql += " ORDER BY T.CREATED_AT DESC ";
+
+                OracleCommand cmd = new OracleCommand(sql, conn);
+
+                if (role == "support")
+                    cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = userId;
+
+                if (!string.IsNullOrEmpty(search))
+                    cmd.Parameters.Add("search", OracleDbType.Varchar2).Value = "%" + search + "%";
+
+                if (!string.IsNullOrEmpty(filterStatus))
+                    cmd.Parameters.Add("filterStatus", OracleDbType.Varchar2).Value = filterStatus;
+
+                OracleDataAdapter da = new OracleDataAdapter(cmd);
+                DataTable dt = new DataTable();
+                da.Fill(dt);
+
+                return dt;
+            }
+        }
+
+        // ===== EXPORT TO PDF & EXCEL =====
+        protected void btnExportPDF_Click(object sender, EventArgs e)
+        {
+            DataTable dt = GetFilteredTickets(); 
+
+            using (MemoryStream ms = new MemoryStream())
+            {
+                Document doc = new Document(iTextSharp.text.PageSize.A4.Rotate(), 10, 10, 10, 10); PdfWriter.GetInstance(doc, ms);
+                doc.Open();
+
+                // =========== HEADER
+                doc.Add(new Paragraph("TICKET REPORT", FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 16)));
+                doc.Add(new Paragraph(" "));
+                doc.Add(new Paragraph("Status: " + (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue)));
+                doc.Add(new Paragraph("Search: " + (string.IsNullOrEmpty(txtSearch.Text) ? "None" : txtSearch.Text)));
+                doc.Add(new Paragraph("Generated: " + DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt")));
+                doc.Add(new Paragraph(" "));
+
+                PdfPTable table = new PdfPTable(dt.Columns.Count);
+
+                // Headers
+                foreach (DataColumn col in dt.Columns)
+                {
+                    table.AddCell(new Phrase(col.ColumnName));
+                }
+
+                // Data
+                foreach (DataRow row in dt.Rows)
+                {
+                    foreach (var cell in row.ItemArray)
+                    {
+                        table.AddCell(cell.ToString());
+                    }
+                }
+
+                doc.Add(table);
+                doc.Close();
+
+                Response.ContentType = "application/pdf";
+                Response.AddHeader("content-disposition", "attachment;filename=Tickets.pdf");
+                Response.BinaryWrite(ms.ToArray());
+                Response.End();
+            }
+        }
+
+        protected void btnExportExcel_Click(object sender, EventArgs e)
+        {
+            DataTable dt = GetFilteredTickets(); 
+
+            Response.Clear();
+            Response.Buffer = true;
+            Response.AddHeader("content-disposition", "attachment;filename=Tickets.xls");
+            Response.Charset = "";
+            Response.ContentType = "application/vnd.ms-excel";
+
+            using (StringWriter sw = new StringWriter())
+            {
+                HtmlTextWriter hw = new HtmlTextWriter(sw);
+
+                // =========== HEADER
+                hw.Write("<h2>TICKET REPORT</h2>");
+                hw.Write("<p><b>Status:</b> " + (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue) + "</p>");
+                hw.Write("<p><b>Search:</b> " + (string.IsNullOrEmpty(txtSearch.Text) ? "None" : txtSearch.Text) + "</p>");
+                hw.Write("<p>Generated: " + DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt") + "</p><br/>");
+
+                GridView gv = new GridView();
+                gv.DataSource = dt;
+                gv.DataBind();
+                gv.RenderControl(hw);
+
+                Response.Output.Write(sw.ToString());
+                Response.Flush();
+                Response.End();
+            }
         }
 
         // ===== PAGINATION =====

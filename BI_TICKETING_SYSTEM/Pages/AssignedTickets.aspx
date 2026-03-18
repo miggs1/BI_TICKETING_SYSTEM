@@ -91,13 +91,10 @@
                     </asp:DropDownList>
                 </div>
                 <div class="col-md-3">
-                    <asp:DropDownList ID="ddlFilterPriority" runat="server" CssClass="form-control filter-select" AutoPostBack="true" OnSelectedIndexChanged="ddlFilter_Changed">
-                        <asp:ListItem Value="">-- All Priority --</asp:ListItem>
-                        <asp:ListItem Value="Low">Low</asp:ListItem>
-                        <asp:ListItem Value="Medium">Medium</asp:ListItem>
-                        <asp:ListItem Value="High">High</asp:ListItem>
-                        <asp:ListItem Value="Urgent">Urgent</asp:ListItem>
-                    </asp:DropDownList>
+                    <asp:Button ID="btnExportPDF" runat="server" Text="Export to PDF"
+                        OnClick="btnExportPDF_Click" CssClass="btn btn-danger" />
+                    <asp:Button ID="btnExportExcel" runat="server" Text="Export to Excel"
+                        OnClick="btnExportExcel_Click" CssClass="btn btn-success" />
                 </div>
             </div>
 
@@ -383,7 +380,7 @@
                                     <asp:ListItem Value="Critical">Critical</asp:ListItem>
                                 </asp:DropDownList>
                             </div>
-                           
+                      </div>
                     </asp:Panel>
 
                     <%-- Assign To - admin only --%>

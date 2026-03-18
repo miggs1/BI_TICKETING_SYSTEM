@@ -5,6 +5,8 @@ using System.Web.UI.WebControls;
 using Oracle.ManagedDataAccess.Client;
 using BI_TICKETING_SYSTEM.Helpers;
 using System.Collections.Generic;
+using iTextSharp.text;
+using iTextSharp.text.pdf;
 
 namespace BI_TICKETING_SYSTEM.Pages
 {
@@ -194,11 +196,11 @@ namespace BI_TICKETING_SYSTEM.Pages
                     da.Fill(dt);
 
                     ddl.Items.Clear();
-                    ddl.Items.Add(new ListItem("-- Unassigned --", ""));
+                    ddl.Items.Add(new System.Web.UI.WebControls.ListItem("-- Unassigned --", ""));
 
                     foreach (DataRow row in dt.Rows)
                     {
-                        ddl.Items.Add(new ListItem(
+                        ddl.Items.Add(new System.Web.UI.WebControls.ListItem(
                             row["FULL_NAME"].ToString(),
                             row["USER_ID"].ToString()
                         ));

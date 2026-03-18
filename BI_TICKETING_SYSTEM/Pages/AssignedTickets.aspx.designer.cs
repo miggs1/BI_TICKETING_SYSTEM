@@ -78,13 +78,22 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.DropDownList ddlFilterStatus;
 
         /// <summary>
-        /// ddlFilterPriority control.
+        /// btnExportPDF control.
         /// </summary>
         /// <remarks>
         /// Auto-generated field.
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
-        protected global::System.Web.UI.WebControls.DropDownList ddlFilterPriority;
+        protected global::System.Web.UI.WebControls.Button btnExportPDF;
+
+        /// <summary>
+        /// btnExportExcel control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Button btnExportExcel;
 
         /// <summary>
         /// rptTickets control.
