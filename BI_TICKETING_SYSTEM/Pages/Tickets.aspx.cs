@@ -151,6 +151,17 @@ namespace BI_TICKETING_SYSTEM.Pages
                     string currentStatus = row["STATUS"].ToString();
                     if (ddlRowStatus.Items.FindByValue(currentStatus) != null)
                         ddlRowStatus.SelectedValue = currentStatus;
+
+                    ddlRowStatus.Attributes["data-oldvalue"] = currentStatus;
+
+                    string role = CurrentRole.ToLower();
+
+                    if (role == "admin" || role == "user")
+                    {
+                        ddlRowStatus.Attributes["onchange"] = "return confirmStatusChange(this);";
+                    }
+                    
+
                 }
 
                 DropDownList ddlRowPriority = (DropDownList)e.Item.FindControl("ddlRowPriority");
@@ -224,6 +235,23 @@ namespace BI_TICKETING_SYSTEM.Pages
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
+
+                    if (CurrentRole.ToLower() == "user")
+                    {
+                        string checkSql = "SELECT CREATED_BY_USER_ID FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                        using (OracleCommand checkCmd = new OracleCommand(checkSql, conn))
+                        {
+                            checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                            object ownerId = checkCmd.ExecuteScalar();
+
+                            if (ownerId == null || Convert.ToInt32(ownerId) != CurrentUserID)
+                            {
+                                ShowError("You can only update your own tickets.");
+                                LoadTickets();
+                                return;
+                            }
+                        }
+                    }
 
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
 

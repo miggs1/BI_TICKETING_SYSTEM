@@ -147,8 +147,10 @@
                                 </asp:PlaceHolder>
                             </td>
                             <td>
-                                <asp:DropDownList ID="ddlRowStatus" runat="server" CssClass="dropdown-status" AutoPostBack="true"
-                                    Visible='<%# Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "support" %>'
+                                <asp:DropDownList ID="ddlRowStatus" runat="server" CssClass="dropdown-status"
+                                    Visible='<%# Session["UserRole"] != null &&
+                                        (Session["UserRole"].ToString().ToLower() == "admin" || 
+                                        Session["UserRole"].ToString().ToLower() == "user") %>'
                                     OnSelectedIndexChanged="ddlRowStatus_Changed">
                                     <asp:ListItem Value="Pending Approval">Pending Approval</asp:ListItem>
                                     <asp:ListItem Value="Open">Open</asp:ListItem>
@@ -157,7 +159,9 @@
                                     <asp:ListItem Value="Closed">Closed</asp:ListItem>
                                     <asp:ListItem Value="Overdue">Overdue</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || (Session["UserRole"].ToString().ToLower() != "admin" && Session["UserRole"].ToString().ToLower() != "support") %>'>
+                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || 
+                                            (Session["UserRole"].ToString().ToLower() != "admin" && 
+                                            Session["UserRole"].ToString().ToLower() != "user") %>'>
                                     <span class="badge <%# GetStatusBadge(Eval("STATUS").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
                                         <%# Eval("STATUS") %>
                                     </span>
@@ -414,6 +418,36 @@
                 btn.click();
             }
         });
+        return false;
+    }
+
+    function confirmStatusChange(ddl) {
+        var oldValue = ddl.getAttribute('data-oldvalue');
+        var newValue = ddl.value;
+
+        if (oldValue === newValue) {
+            return false;
+        }
+
+        ddl.value = oldValue;
+
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'Do you want to change the ticket status to "' + newValue + '"?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#001f54',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, update it',
+            cancelButtonText: 'Cancel'
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                ddl.value = newValue;
+                ddl.setAttribute('data-oldvalue', newValue);
+                __doPostBack(ddl.name, '');
+            }
+        });
+
         return false;
     }
 </script>
