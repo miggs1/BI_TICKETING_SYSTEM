@@ -212,26 +212,36 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                         // Determine whether current user may add remarks:
                         // Admins may always add. Support may add only if assigned to this ticket.
+                        // show/hide add-remark UI server-side
                         bool canAddRemark = false;
-                        string role = CurrentRole?.ToLower() ?? "user";
-                        if (role == "admin")
+                        bool isClosed = string.Equals(row["STATUS"].ToString(), "Closed", StringComparison.OrdinalIgnoreCase);
+
+                        string role = CurrentRole.ToLower();
+
+                        if (!isClosed)
                         {
-                            canAddRemark = true;
-                        }
-                        else if (role == "support")
-                        {
-                            if (row["ASSIGNED_TO_USER_ID"] != DBNull.Value)
+                            if (role == "admin")
                             {
-                                int assignedId = Convert.ToInt32(row["ASSIGNED_TO_USER_ID"]);
-                                if (assignedId == CurrentUserID) canAddRemark = true;
+                                canAddRemark = true;
+                            }
+                            else if (role == "support")
+                            {
+                                if (row["ASSIGNED_TO_USER_ID"] != DBNull.Value)
+                                {
+                                    int assignedId = Convert.ToInt32(row["ASSIGNED_TO_USER_ID"]);
+                                    if (assignedId == CurrentUserID)
+                                    {
+                                        canAddRemark = true;
+                                    }
+                                }
                             }
                         }
 
-                        // show/hide add-remark UI server-side
                         pnlAddRemark.Visible = canAddRemark;
+                        pnlClosedRemarkNotice.Visible = isClosed;
+                        txtNewRemark.Text = "";
 
                         hfShowModal.Value = "view";
-                        LoadTickets();
                     }
                 }
             }
@@ -289,38 +299,70 @@ namespace BI_TICKETING_SYSTEM.Pages
             int ticketId = Convert.ToInt32(hfViewTicketId.Value);
             string remark = txtNewRemark.Text.Trim();
 
-            if (string.IsNullOrEmpty(remark)) return;
-
-            using (OracleConnection conn = new OracleConnection(DatabaseHelper.GetConnectionString()))
+            if (string.IsNullOrEmpty(remark))
             {
-                // Use the exact column names from your CREATE TABLE statement
-                string sql = @"
-            INSERT INTO BI_OJT.TICKET_REMARKS 
-            (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT) 
-            VALUES 
-            (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
-
-                using (OracleCommand cmd = new OracleCommand(sql, conn))
-                {
-                    cmd.Parameters.Add(":ticketId", OracleDbType.Int32).Value = ticketId;
-                    cmd.Parameters.Add(":userId", OracleDbType.Int32).Value = CurrentUserID;
-                    cmd.Parameters.Add(":remarkText", OracleDbType.Clob).Value = remark;
-
-                    conn.Open();
-                    cmd.ExecuteNonQuery();
-                }
-                var newSnap = new Dictionary<string, object> {
-                { "REMARK_TEXT", remark },
-                { "TICKET_ID", ticketId }
-            };
-                AuditHelper.LogAction(CurrentUserID, "ADD_REMARK", "TICKET_REMARKS", ticketId, null, newSnap);
+                ShowError("Please enter a remark.");
+                hfShowModal.Value = "view";
+                LoadTicketForView(ticketId);
+                return;
             }
 
-            txtNewRemark.Text = "";
-            LoadTicketForView(ticketId); // Refresh the view
-            ShowSuccess("Remark added successfully!");
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    string checkStatusSql = "SELECT STATUS FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                    using (OracleCommand checkCmd = new OracleCommand(checkStatusSql, conn))
+                    {
+                        checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        string status = checkCmd.ExecuteScalar()?.ToString();
+                        if (string.Equals(status, "Closed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ShowError("Cannot add remark to a closed ticket.");
+                            hfShowModal.Value = "view";
+                            LoadTicketForView(ticketId);
+                            return;
+                        }
+                    }
+
+                    string sql = @"
+                        INSERT INTO BI_OJT.TICKET_REMARKS
+                        (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT)
+                        VALUES
+                        (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
+
+                    using (OracleCommand cmd = new OracleCommand(sql, conn))
+                    {
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+                        cmd.Parameters.Add("remarkText", OracleDbType.Clob).Value = remark;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    var newSnap = new Dictionary<string, object>
+                    {
+                        { "REMARK_TEXT",remark },
+                        { "TICKET_ID", ticketId }
+                    };
+
+                    AuditHelper.LogAction(CurrentUserID, "ADD+REMARK", "TICKET_REMARKS", ticketId, null, newSnap);
+                }
+
+                txtNewRemark.Text = "";
+                hfShowModal.Value = "view";
+                LoadTicketForView(ticketId);
+                ShowSuccess("Remark added successfully!");
+            }
+            catch (Exception ex)
+            {
+                hfShowModal.Value = "view";
+                LoadTicketForView(ticketId);
+                ShowError("Error adding remark: " + ex.Message);
+            }
         }
-        
+
         // ===== APPROVE TICKET =====
         private void ApproveTicket(int ticketId)
         {
@@ -356,6 +398,8 @@ namespace BI_TICKETING_SYSTEM.Pages
                         string newJson = newSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(newSnap);
 
                         AuditHelper.Log(CurrentUserID, "APPROVE_TICKET", oldJson, newJson);
+
+                        InsertStatusRemark(ticketId, "Open", conn);
 
                         tran.Commit();
 
@@ -508,6 +552,16 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     cmd.ExecuteNonQuery();
 
+                    string oldStatus = oldSnap != null && oldSnap.ContainsKey("STATUS") ? oldSnap["STATUS"]?.ToString() : null;
+                    string newEditStatus = null;
+                    if (CurrentRole.ToLower() == "support" || CurrentRole.ToLower() == "admin")
+                        newEditStatus = ddlEditStatus.SelectedValue;
+
+                    if (newEditStatus != null && !string.Equals(oldStatus, newEditStatus, StringComparison.OrdinalIgnoreCase))
+                    {
+                        InsertStatusRemark(ticketId, newEditStatus, conn);
+                    }
+
                     var newSnap = GetTicketSnapshot(ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId, oldSnap, newSnap);
 
@@ -533,13 +587,27 @@ namespace BI_TICKETING_SYSTEM.Pages
                     conn.Open();
 
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
+                    string oldJson = oldSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(oldSnap);
 
-                    string sql = "DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                    cmd.ExecuteNonQuery();
+                    using (var delRemarks = new OracleCommand("DELETE FROM BI_OJT.TICKET_REMARKS WHERE TICKET_ID = :ticketId", conn))
+                    {
+                        delRemarks.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        delRemarks.ExecuteNonQuery();
+                    }
 
-                    AuditHelper.LogAction(CurrentUserID, "DELETE_TICKET", "TICKETS", ticketId, oldSnap, null);
+                    using (var delAudit = new OracleCommand("DELETE FROM BI_OJT.AUDIT_LOGS WHERE TICKET_ID = :ticketId", conn))
+                    {
+                        delAudit.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        delAudit.ExecuteNonQuery();
+                    }
+
+                    using (var cmd = new OracleCommand("DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId", conn))
+                    {
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    AuditHelper.Log(CurrentUserID, "DELETE_TICKET", oldJson, null);
                     ShowSuccess("Ticket deleted successfully.");
                     LoadTickets();
                 }
@@ -607,6 +675,20 @@ namespace BI_TICKETING_SYSTEM.Pages
                     snap["PRIORITY"] = reader["PRIORITY"] == DBNull.Value ? null : reader["PRIORITY"].ToString();
                     return snap;
                 }
+            }
+        }
+
+        private void InsertStatusRemark(int ticketId, string newStatus, OracleConnection conn)
+        {
+            string sql = @"INSERT INTO BI_OJT.TICKET_REMARKS 
+                (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT) 
+                VALUES (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
+            using (var cmd = new OracleCommand(sql, conn))
+            {
+                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+                cmd.Parameters.Add("remarkText", OracleDbType.Varchar2).Value = "Ticket Status: " + newStatus;
+                cmd.ExecuteNonQuery();
             }
         }
 

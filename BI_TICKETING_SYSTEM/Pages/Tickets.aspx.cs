@@ -279,6 +279,8 @@ namespace BI_TICKETING_SYSTEM.Pages
                     var newSnap = GetTicketSnapshot(ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "UPDATE_STATUS", "TICKETS", ticketId, oldSnap, newSnap);
 
+                    InsertStatusRemark(ticketId, newStatus, conn);
+
                     ShowSuccess("Status updated successfully!");
                     LoadTickets();
                 }
@@ -480,7 +482,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                         LoadTicketRemarks(ticketId, conn);
 
                         hfShowModal.Value = "view";
-                        LoadTickets();
                     }
                 }
             }
@@ -565,13 +566,27 @@ namespace BI_TICKETING_SYSTEM.Pages
                     }
 
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
+                    string oldJson = oldSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(oldSnap);
 
-                    string sql = "DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                    cmd.ExecuteNonQuery();
+                    using (var delRemarks = new OracleCommand("DELETE FROM BI_OJT.TICKET_REMARKS WHERE TICKET_ID = :ticketId", conn))
+                    {
+                        delRemarks.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        delRemarks.ExecuteNonQuery();
+                    }
 
-                    AuditHelper.LogAction(CurrentUserID, "DELETE_TICKET", "TICKETS", ticketId, oldSnap, null);
+                    using (var delAudit = new OracleCommand("DELETE FROM BI_OJT.AUDIT_LOGS WHERE TICKET_ID = :ticketId", conn))
+                    {
+                        delAudit.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        delAudit.ExecuteNonQuery();
+                    }
+
+                    using (var cmd = new OracleCommand("DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId", conn))
+                    {
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    AuditHelper.Log(CurrentUserID, "DELETE_TICKET", oldJson, null);
                     ShowSuccess("Ticket deleted successfully.");
                     LoadTickets();
                 }
@@ -601,6 +616,20 @@ namespace BI_TICKETING_SYSTEM.Pages
                     snap["PRIORITY"] = reader["PRIORITY"] == DBNull.Value ? null : reader["PRIORITY"].ToString();
                     return snap;
                 }
+            }
+        }
+
+        private void InsertStatusRemark(int ticketId, string newStatus, OracleConnection conn)
+        {
+            string sql = @"INSERT INTO BI_OJT.TICKET_REMARKS 
+                (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT) 
+                VALUES (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
+            using (var cmd = new OracleCommand(sql, conn))
+            {
+                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+                cmd.Parameters.Add("remarkText", OracleDbType.Varchar2).Value = "Ticket Status: " + newStatus;
+                cmd.ExecuteNonQuery();
             }
         }
 

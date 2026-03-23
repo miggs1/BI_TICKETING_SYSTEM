@@ -304,6 +304,10 @@
                         </div>
                     </asp:Panel>
 
+                    <asp:Panel ID="pnlClosedRemarkNotice" runat="server" Visible="false" CssClass="alert alert-secondary mt-3">
+                        Remarks are disabled for closed tickets.
+                    </asp:Panel>
+
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
