@@ -69,7 +69,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     string sql = @"
                         SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
-                               T.CREATED_AT,
+                               T.CREATED_AT, T.ASSIGNED_TO_USER_ID,
                                U.FULL_NAME AS CREATED_BY_NAME,
                                A.FULL_NAME AS ASSIGNED_TO_NAME
                         FROM BI_OJT.TICKETS T
@@ -339,6 +339,112 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
         }
 
+        // ===== ITEM DATA BOUND =====
+        protected void rptTickets_ItemDataBound(object sender, RepeaterItemEventArgs e)
+        {
+            if (e.Item.ItemType == ListItemType.Item || e.Item.ItemType == ListItemType.AlternatingItem)
+            {
+                DataRowView row = (DataRowView)e.Item.DataItem;
+
+                DropDownList ddlRowPriority = (DropDownList)e.Item.FindControl("ddlRowPriority");
+                if (ddlRowPriority != null && ddlRowPriority.Visible)
+                {
+                    string currentPriority = row["PRIORITY"]?.ToString()?.ToUpper() ?? "";
+                    if (!string.IsNullOrEmpty(currentPriority) && ddlRowPriority.Items.FindByValue(currentPriority) != null)
+                        ddlRowPriority.SelectedValue = currentPriority;
+                    else
+                        ddlRowPriority.SelectedValue = "";
+                }
+            }
+        }
+
+        // ===== PRIORITY CHANGE =====
+        protected void ddlRowPriority_Changed(object sender, EventArgs e)
+        {
+            DropDownList ddl = (DropDownList)sender;
+            RepeaterItem item = (RepeaterItem)ddl.NamingContainer;
+            HiddenField hf = (HiddenField)item.FindControl("hfRowTicketId");
+
+            int ticketId = Convert.ToInt32(hf.Value);
+            string newPriority = ddl.SelectedValue;
+
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    if (CurrentRole.ToLower() == "support")
+                    {
+                        string checkSql = "SELECT ASSIGNED_TO_USER_ID FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                        using (OracleCommand checkCmd = new OracleCommand(checkSql, conn))
+                        {
+                            checkCmd.BindByName = true;
+                            checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                            object assignedId = checkCmd.ExecuteScalar();
+
+                            if (assignedId == null || assignedId == DBNull.Value || Convert.ToInt32(assignedId) != CurrentUserID)
+                            {
+                                ShowError("You can only update priority for tickets assigned to you.");
+                                LoadTickets();
+                                return;
+                            }
+                        }
+                    }
+
+                    var oldSnap = GetTicketSnapshot(ticketId, conn);
+
+                    string sql = @"UPDATE BI_OJT.TICKETS 
+                                   SET PRIORITY = :priority, UPDATED_AT = SYSDATE 
+                                   WHERE TICKET_ID = :ticketId";
+
+                    using (var cmd = new OracleCommand(sql, conn))
+                    {
+                        cmd.BindByName = true;
+                        cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value =
+                            string.IsNullOrEmpty(newPriority) ? (object)DBNull.Value : newPriority;
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    var newSnap = GetTicketSnapshot(ticketId, conn);
+                    AuditHelper.LogAction(CurrentUserID, "UPDATE_PRIORITY", "TICKETS", ticketId, oldSnap, newSnap);
+
+                    ShowSuccess("Priority updated successfully!");
+                    LoadTickets();
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error updating priority: " + ex.Message);
+                LoadTickets();
+            }
+        }
+
+        // ===== TICKET SNAPSHOT =====
+        private Dictionary<string, object> GetTicketSnapshot(int ticketId, OracleConnection conn)
+        {
+            string sql = @"SELECT STATUS, CREATED_BY_USER_ID, ASSIGNED_TO_USER_ID, PRIORITY
+                           FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+
+            using (var cmd = new OracleCommand(sql, conn))
+            {
+                cmd.BindByName = true;
+                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (!reader.Read()) return null;
+
+                    var snap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                    snap["STATUS"] = reader["STATUS"] == DBNull.Value ? null : reader["STATUS"].ToString();
+                    snap["CREATED_BY_USER_ID"] = reader["CREATED_BY_USER_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["CREATED_BY_USER_ID"]);
+                    snap["ASSIGNED_TO_USER_ID"] = reader["ASSIGNED_TO_USER_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["ASSIGNED_TO_USER_ID"]);
+                    snap["PRIORITY"] = reader["PRIORITY"] == DBNull.Value ? null : reader["PRIORITY"].ToString();
+                    return snap;
+                }
+            }
+        }
+
         // ===== SEARCH & FILTER =====
         protected void btnSearch_Click(object sender, EventArgs e)
         {
@@ -366,7 +472,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                 string sql = @"
             SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
-                   T.CREATED_AT,
+                   T.CREATED_AT, T.ASSIGNED_TO_USER_ID,
                    U.FULL_NAME AS CREATED_BY_NAME,
                    A.FULL_NAME AS ASSIGNED_TO_NAME
             FROM BI_OJT.TICKETS T

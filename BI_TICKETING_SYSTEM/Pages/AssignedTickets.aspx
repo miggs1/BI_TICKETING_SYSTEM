@@ -36,6 +36,8 @@
     .alert-danger-custom { background: #f8d7da; border: 1px solid #f5c6cb; border-left: 4px solid #dc3545; border-radius: 8px; color: #721c24; padding: 10px 15px; font-size: 13px; }
     .remark-item { background:#fff; border-radius:6px; padding:10px; margin-bottom:8px; border:1px solid #eee; }
     .remark-meta { font-size:11px; color:#666; }
+    .dropdown-priority { font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid #ddd; }
+    .dropdown-priority:focus { border-color: #001f54; box-shadow: 0 0 0 2px rgba(0,31,84,0.1); }
 </style>
 </asp:Content>
 
@@ -89,7 +91,7 @@
 
             <!-- Tickets Table -->
             <div class="table-responsive">
-                <asp:Repeater ID="rptTickets" runat="server">
+                <asp:Repeater ID="rptTickets" runat="server" OnItemDataBound="rptTickets_ItemDataBound">
                     <HeaderTemplate>
                         <table class="table table-bordered table-hover">
                             <thead>
@@ -115,9 +117,21 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="badge <%# GetPriorityBadge(Eval("PRIORITY").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
-                                    <%# string.IsNullOrEmpty(Eval("PRIORITY").ToString()) ? "Not Set" : Eval("PRIORITY").ToString() %>
-                                </span>
+                                <asp:DropDownList ID="ddlRowPriority" runat="server" CssClass="dropdown-priority" AutoPostBack="true"
+                                    Visible='<%# Session["UserRole"] != null && (Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "support") %>'
+                                    OnSelectedIndexChanged="ddlRowPriority_Changed">
+                                    <asp:ListItem Value="">NOT SET</asp:ListItem>
+                                    <asp:ListItem Value="LOW">Low</asp:ListItem>
+                                    <asp:ListItem Value="MEDIUM">Medium</asp:ListItem>
+                                    <asp:ListItem Value="HIGH">High</asp:ListItem>
+                                    <asp:ListItem Value="URGENT">Urgent</asp:ListItem>
+                                </asp:DropDownList>
+                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || (Session["UserRole"].ToString().ToLower() != "admin" && Session["UserRole"].ToString().ToLower() != "support") %>'>
+                                    <span class="badge <%# GetPriorityBadge(Eval("PRIORITY").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
+                                        <%# string.IsNullOrEmpty(Eval("PRIORITY").ToString()) ? "Not Set" : Eval("PRIORITY").ToString() %>
+                                    </span>
+                                </asp:PlaceHolder>
+                                <asp:HiddenField ID="hfRowTicketId" runat="server" Value='<%# Eval("TICKET_ID") %>' />
                             </td>
                             <td><%# Eval("CREATED_BY_NAME") %></td>
                             <td><%# string.IsNullOrEmpty(Eval("ASSIGNED_TO_NAME").ToString()) ? "<span style='color:#aaa;'>Unassigned</span>" : Eval("ASSIGNED_TO_NAME").ToString() %></td>
