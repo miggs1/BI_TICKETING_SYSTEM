@@ -352,7 +352,15 @@ namespace BI_TICKETING_SYSTEM.Pages
                     var newSnap = GetTicketSnapshot(ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "UPDATE_ASSIGNMENT", "TICKETS", ticketId, oldSnap, newSnap);
 
-                    InsertStatusRemark(ticketId, newStatus, conn);
+                    if (isAssigning)
+                    {
+                        string assignedName = ddl.SelectedItem.Text;
+                        InsertAssignmentRemark(ticketId, assignedName, conn);
+                    }
+                    else
+                    {
+                        InsertStatusRemark(ticketId, newStatus, conn);
+                    }
 
                     ShowSuccess("Assignment updated successfully!");
                     LoadTickets();
@@ -670,6 +678,21 @@ namespace BI_TICKETING_SYSTEM.Pages
                 cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                 cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
                 cmd.Parameters.Add("remarkText", OracleDbType.Varchar2).Value = "Ticket Status: " + newStatus;
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private void InsertAssignmentRemark(int ticketId, string assignedToName, OracleConnection conn)
+        {
+            string sql = @"INSERT INTO BI_OJT.TICKET_REMARKS 
+                (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT) 
+                VALUES (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
+            using (var cmd = new OracleCommand(sql, conn))
+            {
+                cmd.BindByName = true;
+                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+                cmd.Parameters.Add("remarkText", OracleDbType.Varchar2).Value = "Ticket Status: Assigned to " + assignedToName;
                 cmd.ExecuteNonQuery();
             }
         }
