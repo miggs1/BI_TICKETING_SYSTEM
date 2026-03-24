@@ -358,6 +358,19 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
         }
 
+        // ===== REPEATER ITEM COMMAND =====
+        protected void rptTickets_ItemCommand(object source, RepeaterCommandEventArgs e)
+        {
+            int ticketId = Convert.ToInt32(e.CommandArgument);
+
+            switch (e.CommandName)
+            {
+                case "ViewTicket":
+                    LoadTicketForView(ticketId);
+                    break;
+            }
+        }
+
         // ===== PRIORITY CHANGE =====
         protected void ddlRowPriority_Changed(object sender, EventArgs e)
         {

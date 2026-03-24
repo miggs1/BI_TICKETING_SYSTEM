@@ -22,6 +22,9 @@
     .table th { background: #001f54; color: white; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
     .table td { font-size: 13px; vertical-align: middle; }
     .table tbody tr:hover { background: #f0f4ff; }
+    .btn-action { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: none; }
+    .btn-view { background: #17a2b8; color: white; }
+    .btn-view:hover { background: #138496; color: white; }
     .modal-header { background: linear-gradient(135deg, #001f54, #003087); color: white; border-radius: 10px 10px 0 0; }
     .modal-header .close { color: white; opacity: 1; }
     .modal-content { border-radius: 10px; border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
@@ -91,7 +94,7 @@
 
             <!-- Tickets Table -->
             <div class="table-responsive">
-                <asp:Repeater ID="rptTickets" runat="server" OnItemDataBound="rptTickets_ItemDataBound">
+                <asp:Repeater ID="rptTickets" runat="server" OnItemDataBound="rptTickets_ItemDataBound" OnItemCommand="rptTickets_ItemCommand">
                     <HeaderTemplate>
                         <table class="table table-bordered table-hover">
                             <thead>
@@ -103,6 +106,7 @@
                                     <th>Created By</th>
                                     <th>Assigned To</th>
                                     <th>Date</th>
+                                    <th style="width:120px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -118,7 +122,7 @@
                             </td>
                             <td>
                                 <asp:DropDownList ID="ddlRowPriority" runat="server" CssClass="dropdown-priority" AutoPostBack="true"
-                                    Visible='<%# Session["UserRole"] != null && (Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "support") %>'
+                                    Visible='<%# Session["UserRole"] != null && Session["UserRole"].ToString().ToLower() == "support" %>'
                                     OnSelectedIndexChanged="ddlRowPriority_Changed">
                                     <asp:ListItem Value="">NOT SET</asp:ListItem>
                                     <asp:ListItem Value="LOW">Low</asp:ListItem>
@@ -126,7 +130,7 @@
                                     <asp:ListItem Value="HIGH">High</asp:ListItem>
                                     <asp:ListItem Value="URGENT">Urgent</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || (Session["UserRole"].ToString().ToLower() != "admin" && Session["UserRole"].ToString().ToLower() != "support") %>'>
+                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || Session["UserRole"].ToString().ToLower() != "support" %>'>
                                     <span class="badge <%# GetPriorityBadge(Eval("PRIORITY").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
                                         <%# string.IsNullOrEmpty(Eval("PRIORITY").ToString()) ? "Not Set" : Eval("PRIORITY").ToString() %>
                                     </span>
@@ -136,6 +140,14 @@
                             <td><%# Eval("CREATED_BY_NAME") %></td>
                             <td><%# string.IsNullOrEmpty(Eval("ASSIGNED_TO_NAME").ToString()) ? "<span style='color:#aaa;'>Unassigned</span>" : Eval("ASSIGNED_TO_NAME").ToString() %></td>
                             <td><%# Convert.ToDateTime(Eval("CREATED_AT")).ToString("MM/dd/yyyy") %></td>
+                            <td>
+                                <asp:LinkButton runat="server" CommandName="ViewTicket"
+                                    CommandArgument='<%# Eval("TICKET_ID") %>'
+                                    CssClass="btn btn-action btn-view mr-1"
+                                    ToolTip="View">
+                                    <i class="fas fa-eye"></i>
+                                </asp:LinkButton>
+                            </td>
                         </tr>
                     </ItemTemplate>
                     <FooterTemplate>
@@ -314,6 +326,5 @@
         }
 
     });
-
     </script>
 </asp:Content>
