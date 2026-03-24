@@ -155,10 +155,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                 case "ViewTicket":
                     LoadTicketForView(ticketId);
                     break;
-                case "ApproveTicket":
-                    if (CurrentRole.ToLower() == "admin")
-                        ApproveTicket(ticketId);
-                    break;
                 case "EditTicket":
                     if (CurrentRole.ToLower() == "admin" ||
                         CurrentRole.ToLower() == "support" ||
@@ -364,57 +360,6 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
         }
 
-        // ===== APPROVE TICKET =====
-        private void ApproveTicket(int ticketId)
-        {
-            try
-            {
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
-                {
-                    conn.Open();
-                    using (var tran = conn.BeginTransaction())
-                    {
-                        var oldSnap = GetTicketSnapshot(ticketId, conn);
-
-                        string sql = @"UPDATE BI_OJT.TICKETS 
-                                       SET STATUS = :status, UPDATED_AT = SYSDATE 
-                                       WHERE TICKET_ID = :ticketId";
-                        using (var cmd = new OracleCommand(sql, conn))
-                        {
-                            cmd.Transaction = tran;
-                            cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = "Open";
-                            cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                            int rows = cmd.ExecuteNonQuery();
-                            if (rows != 1)
-                            {
-                                tran.Rollback();
-                                ShowError("Ticket not found or not updated.");
-                                return;
-                            }
-                        }
-
-                        var newSnap = GetTicketSnapshot(ticketId, conn);
-
-                        string oldJson = oldSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(oldSnap);
-                        string newJson = newSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(newSnap);
-
-                        AuditHelper.Log(CurrentUserID, "APPROVE_TICKET", oldJson, newJson);
-
-                        InsertStatusRemark(ticketId, "Open", conn);
-
-                        tran.Commit();
-
-                        ShowSuccess("Ticket approved successfully! Status changed to Open.");
-                        LoadTickets();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                ShowError("Error approving ticket: " + ex.Message);
-            }
-        }
-
         // ===== EDIT TICKET =====
         private void LoadTicketForEdit(int ticketId)
         {
@@ -507,16 +452,27 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     string sql;
                     OracleCommand cmd;
+                    string effectiveNewStatus = null;
 
                     if (CurrentRole.ToLower() == "support")
                     {
+                        string selectedStatus = ddlEditStatus.SelectedValue;
+                        if (selectedStatus.Equals("New", StringComparison.OrdinalIgnoreCase) ||
+                            selectedStatus.Equals("Assigned", StringComparison.OrdinalIgnoreCase))
+                        {
+                            hfShowModal.Value = "edit";
+                            ShowError("'New' and 'Assigned' are automatic statuses and cannot be selected manually.");
+                            return;
+                        }
+
                         sql = @"UPDATE BI_OJT.TICKETS 
                         SET STATUS = :status, UPDATED_AT = SYSDATE
                         WHERE TICKET_ID = :ticketId";
 
                         cmd = new OracleCommand(sql, conn);
-                        cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = ddlEditStatus.SelectedValue;
+                        cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = selectedStatus;
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        effectiveNewStatus = selectedStatus;
                     }
                     else if (CurrentRole.ToLower() == "user")
                     {
@@ -533,6 +489,26 @@ namespace BI_TICKETING_SYSTEM.Pages
                     }
                     else
                     {
+                        // Admin: auto-set Assigned when assigning a support user
+                        string selectedStatus = ddlEditStatus.SelectedValue;
+                        bool isAssigning = !string.IsNullOrEmpty(ddlAssignTo.SelectedValue);
+
+                        if (isAssigning)
+                        {
+                            effectiveNewStatus = "Assigned";
+                        }
+                        else if (selectedStatus.Equals("New", StringComparison.OrdinalIgnoreCase) ||
+                                 selectedStatus.Equals("Assigned", StringComparison.OrdinalIgnoreCase))
+                        {
+                            hfShowModal.Value = "edit";
+                            ShowError("'New' and 'Assigned' are automatic statuses and cannot be selected manually.");
+                            return;
+                        }
+                        else
+                        {
+                            effectiveNewStatus = selectedStatus;
+                        }
+
                         sql = @"UPDATE BI_OJT.TICKETS 
                         SET TITLE = :title,
                             DESCRIPTION = :description,
@@ -545,7 +521,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                         cmd = new OracleCommand(sql, conn);
                         cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtEditTitle.Text.Trim();
                         cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtEditDescription.Text.Trim();
-                        cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = ddlEditStatus.SelectedValue;
+                        cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = effectiveNewStatus;
                         cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value = string.IsNullOrEmpty(ddlEditPriority.SelectedValue) ? (object)DBNull.Value : ddlEditPriority.SelectedValue;
                         cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = string.IsNullOrEmpty(ddlAssignTo.SelectedValue) ? (object)DBNull.Value : Convert.ToInt32(ddlAssignTo.SelectedValue);
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
@@ -554,13 +530,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                     cmd.ExecuteNonQuery();
 
                     string oldStatus = oldSnap != null && oldSnap.ContainsKey("STATUS") ? oldSnap["STATUS"]?.ToString() : null;
-                    string newEditStatus = null;
-                    if (CurrentRole.ToLower() == "support" || CurrentRole.ToLower() == "admin")
-                        newEditStatus = ddlEditStatus.SelectedValue;
-
-                    if (newEditStatus != null && !string.Equals(oldStatus, newEditStatus, StringComparison.OrdinalIgnoreCase))
+                    if (effectiveNewStatus != null && !string.Equals(oldStatus, effectiveNewStatus, StringComparison.OrdinalIgnoreCase))
                     {
-                        InsertStatusRemark(ticketId, newEditStatus, conn);
+                        InsertStatusRemark(ticketId, effectiveNewStatus, conn);
                     }
 
                     var newSnap = GetTicketSnapshot(ticketId, conn);
@@ -912,12 +884,11 @@ namespace BI_TICKETING_SYSTEM.Pages
         {
             switch (status?.ToLower())
             {
-                case "pending approval": return "badge-pending-approval";
-                case "open": return "badge-open";
+                case "new": return "badge-new";
+                case "assigned": return "badge-assigned";
                 case "in progress": return "badge-in-progress";
                 case "resolved": return "badge-resolved";
                 case "closed": return "badge-closed";
-                case "overdue": return "badge-overdue";
                 default: return "badge-secondary";
             }
         }

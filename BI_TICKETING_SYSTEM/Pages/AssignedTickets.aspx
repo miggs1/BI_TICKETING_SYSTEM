@@ -9,12 +9,11 @@
     .filter-select { border-radius: 8px !important; font-size: 13px; }
     .btn-create { background: linear-gradient(135deg, #001f54, #003087); color: white; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; }
     .btn-create:hover { background: linear-gradient(135deg, #003087, #0041a8); color: white; }
-    .badge-pending-approval { background: #6c757d; color: white; }
-    .badge-open { background: #ffc107; color: #333; }
+    .badge-new { background: #fd7e14; color: white; }
+    .badge-assigned { background: #ffc107; color: #333; }
     .badge-in-progress { background: #007bff; color: white; }
     .badge-resolved { background: #28a745; color: white; }
-    .badge-closed { background: #343a40; color: white; }
-    .badge-overdue { background: #dc3545; color: white; }
+    .badge-closed { background: #000000; color: white; }
     .badge-low { background: #007bff; color: white; }
     .badge-medium { background: #ffc107; color: #333; }
     .badge-high { background: #fd7e14; color: white; }
@@ -82,12 +81,11 @@
                 <div class="col-md-3">
                     <asp:DropDownList ID="ddlFilterStatus" runat="server" CssClass="form-control filter-select" AutoPostBack="true" OnSelectedIndexChanged="ddlFilter_Changed">
                         <asp:ListItem Value="">-- All Status --</asp:ListItem>
-                        <asp:ListItem Value="Pending Approval">Pending Approval</asp:ListItem>
-                        <asp:ListItem Value="Open">Open</asp:ListItem>
+                        <asp:ListItem Value="New">New</asp:ListItem>
+                        <asp:ListItem Value="Assigned">Assigned</asp:ListItem>
                         <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
                         <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
                         <asp:ListItem Value="Closed">Closed</asp:ListItem>
-                        <asp:ListItem Value="Overdue">Overdue</asp:ListItem>
                     </asp:DropDownList>
                 </div>
                 <div class="col-md-3">
@@ -141,15 +139,6 @@
                                 CssClass="btn btn-action btn-view mr-1"
                                 ToolTip="View">
                                 <i class="fas fa-eye"></i>
-                            </asp:LinkButton>
-
-                            <%-- Approve - admin only, pending approval only --%>
-                            <asp:LinkButton runat="server" CommandName="ApproveTicket"
-                                CommandArgument='<%# Eval("TICKET_ID") %>'
-                                CssClass="btn btn-action btn-approve mr-1"
-                                Visible='<%# Eval("STATUS").ToString() == "Pending Approval" && Session["UserRole"].ToString().ToLower() == "admin" %>'
-                                ToolTip="Approve">
-                                <i class="fas fa-check"></i>
                             </asp:LinkButton>
 
                             <%-- Edit - admin, support, and user (own tickets) --%>
@@ -336,8 +325,8 @@
                         <div class="col-md-6">
                             <label class="form-label">Status <span class="required-star">*</span></label>
                             <asp:DropDownList ID="ddlEditStatus" runat="server" CssClass="form-control">
-                                <asp:ListItem Value="Pending Approval">Pending Approval</asp:ListItem>
-                                <asp:ListItem Value="Open">Open</asp:ListItem>
+                                <asp:ListItem Value="New" Enabled="False">New</asp:ListItem>
+                                <asp:ListItem Value="Assigned" Enabled="False">Assigned</asp:ListItem>
                                 <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
                                 <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
                                 <asp:ListItem Value="Closed">Closed</asp:ListItem>

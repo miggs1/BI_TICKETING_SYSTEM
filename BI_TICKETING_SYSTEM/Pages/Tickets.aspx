@@ -9,12 +9,11 @@
     .filter-select { border-radius: 8px !important; font-size: 13px; }
     .btn-create { background: linear-gradient(135deg, #001f54, #003087); color: white; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; }
     .btn-create:hover { background: linear-gradient(135deg, #003087, #0041a8); color: white; }
-    .badge-pending-approval { background: #6c757d; color: white; }
-    .badge-open { background: #ffc107; color: #333; }
+    .badge-new { background: #fd7e14; color: white; }
+    .badge-assigned { background: #ffc107; color: #333; }
     .badge-in-progress { background: #007bff; color: white; }
     .badge-resolved { background: #28a745; color: white; }
     .badge-closed { background: #000000; color: white; }
-    .badge-overdue { background: #dc3545; color: white; }
     .badge-low { background: #007bff; color: white; }
     .badge-medium { background: #ffc107; color: #333; }
     .badge-high { background: #fd7e14; color: white; }
@@ -87,12 +86,11 @@
                 <div class="col-md-3">
                     <asp:DropDownList ID="ddlFilterStatus" runat="server" CssClass="form-control filter-select" AutoPostBack="true" OnSelectedIndexChanged="ddlFilter_Changed">
                         <asp:ListItem Value="">-- All Status --</asp:ListItem>
-                        <asp:ListItem Value="Pending Approval">Pending Approval</asp:ListItem>
-                        <asp:ListItem Value="Open">Open</asp:ListItem>
+                        <asp:ListItem Value="New">New</asp:ListItem>
+                        <asp:ListItem Value="Assigned">Assigned</asp:ListItem>
                         <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
                         <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
                         <asp:ListItem Value="Closed">Closed</asp:ListItem>
-                        <asp:ListItem Value="Overdue">Overdue</asp:ListItem>
                     </asp:DropDownList>
                 </div>
                 <div class="col-md-3">
@@ -152,12 +150,11 @@
                                         (Session["UserRole"].ToString().ToLower() == "admin" || 
                                         Session["UserRole"].ToString().ToLower() == "user") %>'
                                     OnSelectedIndexChanged="ddlRowStatus_Changed">
-                                    <asp:ListItem Value="Pending Approval">Pending Approval</asp:ListItem>
-                                    <asp:ListItem Value="Open">Open</asp:ListItem>
+                                    <asp:ListItem Value="New">New</asp:ListItem>
+                                    <asp:ListItem Value="Assigned">Assigned</asp:ListItem>
                                     <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
                                     <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
                                     <asp:ListItem Value="Closed">Closed</asp:ListItem>
-                                    <asp:ListItem Value="Overdue">Overdue</asp:ListItem>
                                 </asp:DropDownList>
                                 <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || 
                                             (Session["UserRole"].ToString().ToLower() != "admin" && 
@@ -426,6 +423,20 @@
         var newValue = ddl.value;
 
         if (oldValue === newValue) {
+            return false;
+        }
+
+        if (newValue === 'New' || newValue === 'Assigned') {
+            ddl.value = oldValue;
+            Swal.fire({
+                icon: 'error',
+                title: 'Not Allowed',
+                text: '"New" and "Assigned" are set automatically.',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2500
+            });
             return false;
         }
 
