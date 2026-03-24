@@ -25,9 +25,7 @@
     .btn-action { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: none; }
     .btn-view { background: #17a2b8; color: white; }
     .btn-view:hover { background: #138496; color: white; }
-    .btn-edit { background: #ffc107; color: #333; }
-    .btn-edit:hover { background: #e0a800; color: #333; }
-    .btn-delete { background: #dc3545; color: white; }
+    .btn-delete
     .btn-delete:hover { background: #c82333; color: white; }
     .btn-approve { background: #28a745; color: white; }
     .btn-approve:hover { background: #218838; color: white; }
@@ -139,15 +137,6 @@
                                 CssClass="btn btn-action btn-view mr-1"
                                 ToolTip="View">
                                 <i class="fas fa-eye"></i>
-                            </asp:LinkButton>
-
-                            <%-- Edit - admin, support, and user (own tickets) --%>
-                            <asp:LinkButton runat="server" CommandName="EditTicket"
-                                CommandArgument='<%# Eval("TICKET_ID") %>'
-                                CssClass="btn btn-action btn-edit mr-1"
-                                Visible='<%# Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "support" || Session["UserRole"].ToString().ToLower() == "user" %>'
-                                ToolTip="Edit">
-                                <i class="fas fa-edit"></i>
                             </asp:LinkButton>
 
                             <%-- Delete - admin and user (own tickets) --%>
@@ -305,122 +294,6 @@
         </div>
     </div>
 
-    <!-- ===== EDIT TICKET MODAL ===== -->
-    <div class="modal fade" id="modalEditTicket" tabindex="-1" role="dialog" data-backdrop="static">
-        <div class="modal-dialog modal-lg" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Ticket</h5>
-                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-                </div>
-                <div class="modal-body">
-                    <asp:HiddenField ID="hfEditTicketId" runat="server" />
-
-                    <%-- Ticket Number and Status - always visible --%>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Ticket Number</label>
-                            <asp:TextBox ID="txtEditTicketNumber" runat="server" CssClass="form-control" ReadOnly="true" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Status <span class="required-star">*</span></label>
-                            <asp:DropDownList ID="ddlEditStatus" runat="server" CssClass="form-control">
-                                <asp:ListItem Value="New" Enabled="False">New</asp:ListItem>
-                                <asp:ListItem Value="Assigned" Enabled="False">Assigned</asp:ListItem>
-                                <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
-                                <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
-                                <asp:ListItem Value="Closed">Closed</asp:ListItem>
-                            </asp:DropDownList>
-                        </div>
-                    </div>
-
-                    <%-- Title - admin only --%>
-                    <asp:Panel ID="pnlEditTitle" runat="server">
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label class="form-label">Title <span class="required-star">*</span></label>
-                                <asp:TextBox ID="txtEditTitle" runat="server" CssClass="form-control" MaxLength="200" />
-                                <asp:RequiredFieldValidator ID="rfvEditTitle" runat="server" ControlToValidate="txtEditTitle"
-                                    ErrorMessage="Title is required." ForeColor="Red" Display="Dynamic"
-                                    ValidationGroup="EditTicket" Font-Size="11px" />
-                            </div>
-                        </div>
-                    </asp:Panel>
-
-                    <%-- Description - admin only --%>
-                    <asp:Panel ID="pnlEditDescription" runat="server">
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label class="form-label">Description <span class="required-star">*</span></label>
-                                <asp:TextBox ID="txtEditDescription" runat="server" CssClass="form-control" TextMode="MultiLine" Rows="5" />
-                                <asp:RequiredFieldValidator ID="rfvEditDescription" runat="server" ControlToValidate="txtEditDescription"
-                                    ErrorMessage="Description is required." ForeColor="Red" Display="Dynamic"
-                                    ValidationGroup="EditTicket" Font-Size="11px" />
-                            </div>
-                        </div>
-                    </asp:Panel>
-
-                    <%-- Priority and Category - admin only --%>
-                    <asp:Panel ID="pnlEditPriorityCategory" runat="server">
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Priority</label>
-                                <asp:DropDownList ID="ddlEditPriority" runat="server" CssClass="form-control">
-                                    <asp:ListItem Value="">-- Not Set --</asp:ListItem>
-                                    <asp:ListItem Value="Low">Low</asp:ListItem>
-                                    <asp:ListItem Value="Medium">Medium</asp:ListItem>
-                                    <asp:ListItem Value="High">High</asp:ListItem>
-                                    <asp:ListItem Value="Critical">Critical</asp:ListItem>
-                                </asp:DropDownList>
-                            </div>
-                      </div>
-                    </asp:Panel>
-
-                    <%-- Assign To - admin only --%>
-                    <asp:Panel ID="pnlAssignTo" runat="server">
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label class="form-label">Assign To <span style="color:#888; font-size:11px;">(Support Staff)</span></label>
-                                <asp:DropDownList ID="ddlAssignTo" runat="server" CssClass="form-control">
-                                    <asp:ListItem Value="">-- Unassigned --</asp:ListItem>
-                                </asp:DropDownList>
-                            </div>
-                        </div>
-                    </asp:Panel>
-
-                    <%-- Title, Description, Category - user only --%>
-                    <asp:Panel ID="pnlUserEdit" runat="server">
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label class="form-label">Title <span class="required-star">*</span></label>
-                                <asp:TextBox ID="txtUserEditTitle" runat="server" CssClass="form-control" MaxLength="200" />
-                                <asp:RequiredFieldValidator ID="rfvUserEditTitle" runat="server" 
-                                    ControlToValidate="txtUserEditTitle"
-                                    ErrorMessage="Title is required." ForeColor="Red" Display="Dynamic"
-                                    ValidationGroup="EditTicket" Font-Size="11px" />
-                            </div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label class="form-label">Description <span class="required-star">*</span></label>
-                                <asp:TextBox ID="txtUserEditDescription" runat="server" CssClass="form-control" TextMode="MultiLine" Rows="5" />
-                                <asp:RequiredFieldValidator ID="rfvUserEditDescription" runat="server" 
-                                    ControlToValidate="txtUserEditDescription"
-                                    ErrorMessage="Description is required." ForeColor="Red" Display="Dynamic"
-                                    ValidationGroup="EditTicket" Font-Size="11px" />
-                            </div>
-                        </div>
-                    </asp:Panel>
-
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <asp:Button ID="btnSaveEdit" runat="server" Text="Save Changes" CssClass="btn btn-create" OnClick="btnSaveEdit_Click" ValidationGroup="EditTicket" />
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- ===== HIDDEN FIELDS ===== -->
     <asp:HiddenField ID="hfShowModal" runat="server" Value="" />
     <asp:HiddenField ID="hfSwalMessage" runat="server" Value="" />
@@ -451,8 +324,6 @@
         var modal = $('#<%= hfShowModal.ClientID %>').val();
         if (modal === 'view') {
             $('#modalViewTicket').modal('show');
-        } else if (modal === 'edit') {
-            $('#modalEditTicket').modal('show');
         }
 
     });

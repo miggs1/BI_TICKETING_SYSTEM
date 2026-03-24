@@ -533,6 +533,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                 case "ViewTicket":
                     LoadTicketForView(ticketId);
                     break;
+                case "EditTicket":
+                    LoadTicketForEdit(ticketId);
+                    break;
                 case "DeleteTicket":
                     DeleteTicket(ticketId);
                     break;
@@ -623,6 +626,98 @@ namespace BI_TICKETING_SYSTEM.Pages
                 pnlNoRemarks.Visible = true;
                 rptRemarks.DataSource = null;
                 rptRemarks.DataBind();
+            }
+        }
+
+        private void LoadTicketForEdit(int ticketId)
+        {
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql = "SELECT TICKET_NUMBER, TITLE, DESCRIPTION FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                    OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.BindByName = true;
+                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                    OracleDataAdapter da = new OracleDataAdapter(cmd);
+                    DataTable dt = new DataTable();
+                    da.Fill(dt);
+
+                    if (dt.Rows.Count > 0)
+                    {
+                        DataRow row = dt.Rows[0];
+                        hfEditTicketId.Value = ticketId.ToString();
+                        txtEditTicketNumber.Text = row["TICKET_NUMBER"].ToString();
+                        txtEditTitle.Text = row["TITLE"].ToString();
+                        txtEditDescription.Text = row["DESCRIPTION"].ToString();
+
+                        hfShowModal.Value = "edit";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error loading ticket for edit: " + ex.Message);
+            }
+        }
+
+        protected void btnSaveEdit_Click(object sender, EventArgs e)
+        {
+            if (!Page.IsValid) return;
+
+            try
+            {
+                int ticketId = Convert.ToInt32(hfEditTicketId.Value);
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    if (CurrentRole.ToLower() == "user")
+                    {
+                        string checkSql = "SELECT CREATED_BY_USER_ID FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                        using (OracleCommand checkCmd = new OracleCommand(checkSql, conn))
+                        {
+                            checkCmd.BindByName = true;
+                            checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                            object ownerId = checkCmd.ExecuteScalar();
+
+                            if (ownerId == null || Convert.ToInt32(ownerId) != CurrentUserID)
+                            {
+                                ShowError("You can only edit your own tickets.");
+                                return;
+                            }
+                        }
+                    }
+
+                    var oldSnap = GetTicketSnapshot(ticketId, conn);
+
+                    string sql = @"UPDATE BI_OJT.TICKETS 
+                                   SET TITLE = :title, DESCRIPTION = :description, UPDATED_AT = SYSDATE
+                                   WHERE TICKET_ID = :ticketId";
+
+                    using (var cmd = new OracleCommand(sql, conn))
+                    {
+                        cmd.BindByName = true;
+                        cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtEditTitle.Text.Trim();
+                        cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtEditDescription.Text.Trim();
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    var newSnap = GetTicketSnapshot(ticketId, conn);
+                    AuditHelper.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId, oldSnap, newSnap);
+
+                    hfShowModal.Value = "";
+                    ShowSuccess("Ticket updated successfully!");
+                    LoadTickets();
+                }
+            }
+            catch (Exception ex)
+            {
+                hfShowModal.Value = "edit";
+                ShowError("Error updating ticket: " + ex.Message);
             }
         }
 

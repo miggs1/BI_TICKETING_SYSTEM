@@ -157,12 +157,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                 case "ViewTicket":
                     LoadTicketForView(ticketId);
                     break;
-                case "EditTicket":
-                    if (CurrentRole.ToLower() == "admin" ||
-                        CurrentRole.ToLower() == "support" ||
-                        CurrentRole.ToLower() == "user")
-                        LoadTicketForEdit(ticketId);
-                    break;
                 case "DeleteTicket":
                     if (CurrentRole.ToLower() == "admin" || CurrentRole.ToLower() == "user")
                         DeleteTicket(ticketId);
@@ -362,196 +356,6 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
         }
 
-        // ===== EDIT TICKET =====
-        private void LoadTicketForEdit(int ticketId)
-        {
-            try
-            {
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
-                {
-                    conn.Open();
-                    string sql = "SELECT * FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-
-                    OracleDataAdapter da = new OracleDataAdapter(cmd);
-                    DataTable dt = new DataTable();
-                    da.Fill(dt);
-
-                    if (dt.Rows.Count > 0)
-                    {
-                        DataRow row = dt.Rows[0];
-                        hfEditTicketId.Value = ticketId.ToString();
-                        txtEditTicketNumber.Text = row["TICKET_NUMBER"].ToString();
-                        ddlEditStatus.SelectedValue = row["STATUS"].ToString();
-
-                        if (CurrentRole.ToLower() == "admin")
-                        {
-                            // Admin sees all fields
-                            pnlEditTitle.Visible = true;
-                            pnlEditDescription.Visible = true;
-                            pnlAssignTo.Visible = true;
-                            pnlUserEdit.Visible = false;
-
-                            txtEditTitle.Text = row["TITLE"].ToString();
-                            txtEditDescription.Text = row["DESCRIPTION"].ToString();
-                            ddlEditPriority.SelectedValue = row["PRIORITY"].ToString();
-
-                            LoadSupportUsers();
-                            if (row["ASSIGNED_TO_USER_ID"] != DBNull.Value)
-                            {
-                                string assignedId = row["ASSIGNED_TO_USER_ID"].ToString();
-                                if (ddlAssignTo.Items.FindByValue(assignedId) != null)
-                                    ddlAssignTo.SelectedValue = assignedId;
-                            }
-                        }
-                        else if (CurrentRole.ToLower() == "support")
-                        {
-                            // Support only sees Status
-                            pnlEditTitle.Visible = false;
-                            pnlEditDescription.Visible = false;
-                            pnlAssignTo.Visible = false;
-                            pnlUserEdit.Visible = false;
-                            pnlEditPriorityCategory.Visible = false;
-                        }
-                        else if (CurrentRole.ToLower() == "user")
-                        {
-                            // User sees Title, Description, Priority only
-                            pnlEditTitle.Visible = false;
-                            pnlEditDescription.Visible = false;
-                            pnlAssignTo.Visible = false;
-                            ddlEditStatus.Enabled = false;
-                            pnlUserEdit.Visible = true;
-                            pnlEditPriorityCategory.Visible = true;
-
-                            txtUserEditTitle.Text = row["TITLE"].ToString();
-                            txtUserEditDescription.Text = row["DESCRIPTION"].ToString();
-                        }
-
-                        hfShowModal.Value = "edit";
-                        LoadTickets();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                ShowError("Error loading ticket for edit: " + ex.Message);
-            }
-        }
-
-        protected void btnSaveEdit_Click(object sender, EventArgs e)
-        {
-            if (!Page.IsValid) return;
-
-            try
-            {
-                int ticketId = Convert.ToInt32(hfEditTicketId.Value);
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
-                {
-                    conn.Open();
-
-                    var oldSnap = GetTicketSnapshot(ticketId, conn);
-
-                    string sql;
-                    OracleCommand cmd;
-                    string effectiveNewStatus = null;
-
-                    if (CurrentRole.ToLower() == "support")
-                    {
-                        string selectedStatus = ddlEditStatus.SelectedValue;
-                        if (selectedStatus.Equals("New", StringComparison.OrdinalIgnoreCase) ||
-                            selectedStatus.Equals("Assigned", StringComparison.OrdinalIgnoreCase))
-                        {
-                            hfShowModal.Value = "edit";
-                            ShowError("'New' and 'Assigned' are automatic statuses and cannot be selected manually.");
-                            return;
-                        }
-
-                        sql = @"UPDATE BI_OJT.TICKETS 
-                        SET STATUS = :status, UPDATED_AT = SYSDATE
-                        WHERE TICKET_ID = :ticketId";
-
-                        cmd = new OracleCommand(sql, conn);
-                        cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = selectedStatus;
-                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                        effectiveNewStatus = selectedStatus;
-                    }
-                    else if (CurrentRole.ToLower() == "user")
-                    {
-                        sql = @"UPDATE BI_OJT.TICKETS 
-                        SET TITLE = :title,
-                            DESCRIPTION = :description,
-                            UPDATED_AT = SYSDATE
-                        WHERE TICKET_ID = :ticketId";
-
-                        cmd = new OracleCommand(sql, conn);
-                        cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtUserEditTitle.Text.Trim();
-                        cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtUserEditDescription.Text.Trim();
-                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                    }
-                    else
-                    {
-                        // Admin: auto-set Assigned when assigning a support user
-                        string selectedStatus = ddlEditStatus.SelectedValue;
-                        bool isAssigning = !string.IsNullOrEmpty(ddlAssignTo.SelectedValue);
-
-                        if (isAssigning)
-                        {
-                            effectiveNewStatus = "Assigned";
-                        }
-                        else if (selectedStatus.Equals("New", StringComparison.OrdinalIgnoreCase) ||
-                                 selectedStatus.Equals("Assigned", StringComparison.OrdinalIgnoreCase))
-                        {
-                            hfShowModal.Value = "edit";
-                            ShowError("'New' and 'Assigned' are automatic statuses and cannot be selected manually.");
-                            return;
-                        }
-                        else
-                        {
-                            effectiveNewStatus = selectedStatus;
-                        }
-
-                        sql = @"UPDATE BI_OJT.TICKETS 
-                        SET TITLE = :title,
-                            DESCRIPTION = :description,
-                            STATUS = :status,
-                            PRIORITY = :priority,
-                            ASSIGNED_TO_USER_ID = :assignedTo,
-                            UPDATED_AT = SYSDATE
-                        WHERE TICKET_ID = :ticketId";
-
-                        cmd = new OracleCommand(sql, conn);
-                        cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtEditTitle.Text.Trim();
-                        cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtEditDescription.Text.Trim();
-                        cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = effectiveNewStatus;
-                        cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value = string.IsNullOrEmpty(ddlEditPriority.SelectedValue) ? (object)DBNull.Value : ddlEditPriority.SelectedValue;
-                        cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = string.IsNullOrEmpty(ddlAssignTo.SelectedValue) ? (object)DBNull.Value : Convert.ToInt32(ddlAssignTo.SelectedValue);
-                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                    }
-
-                    cmd.ExecuteNonQuery();
-
-                    string oldStatus = oldSnap != null && oldSnap.ContainsKey("STATUS") ? oldSnap["STATUS"]?.ToString() : null;
-                    if (effectiveNewStatus != null && !string.Equals(oldStatus, effectiveNewStatus, StringComparison.OrdinalIgnoreCase))
-                    {
-                        InsertStatusRemark(ticketId, effectiveNewStatus, conn);
-                    }
-
-                    var newSnap = GetTicketSnapshot(ticketId, conn);
-                    AuditHelper.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId, oldSnap, newSnap);
-
-                    hfShowModal.Value = "";
-                    ShowSuccess("Ticket updated successfully!");
-                    LoadTickets();
-                }
-            }
-            catch (Exception ex)
-            {
-                hfShowModal.Value = "edit";
-                ShowError("Error updating ticket: " + ex.Message);
-            }
-        }
-
         // ===== DELETE TICKET =====
         private void DeleteTicket(int ticketId)
         {
@@ -593,43 +397,6 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
         }
 
-        // ===== LOAD SUPPORT USERS =====
-        private void LoadSupportUsers()
-        {
-            try
-            {
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
-                {
-                    conn.Open();
-                    string sql = @"SELECT USER_ID, FULL_NAME 
-                                   FROM BI_OJT.USERS 
-                                   WHERE UPPER(ROLE) = 'SUPPORT' 
-                                   AND UPPER(STATUS) = 'ACTIVE'
-                                   ORDER BY FULL_NAME";
-
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    OracleDataAdapter da = new OracleDataAdapter(cmd);
-                    DataTable dt = new DataTable();
-                    da.Fill(dt);
-
-                    ddlAssignTo.Items.Clear();
-                    ddlAssignTo.Items.Add(new System.Web.UI.WebControls.ListItem("-- Unassigned --", ""));
-
-                    foreach (DataRow row in dt.Rows)
-                    {
-                        ddlAssignTo.Items.Add(new System.Web.UI.WebControls.ListItem(
-                            row["FULL_NAME"].ToString(),
-                            row["USER_ID"].ToString()
-                        ));
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                ShowError("Error loading support users: " + ex.Message);
-            }
-        }
-
         // ===== Helper: snapshot of ticket values we track in audit =====
         private Dictionary<string, object> GetTicketSnapshot(int ticketId, OracleConnection conn)
         {
@@ -650,20 +417,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                     snap["PRIORITY"] = reader["PRIORITY"] == DBNull.Value ? null : reader["PRIORITY"].ToString();
                     return snap;
                 }
-            }
-        }
-
-        private void InsertStatusRemark(int ticketId, string newStatus, OracleConnection conn)
-        {
-            string sql = @"INSERT INTO BI_OJT.TICKET_REMARKS 
-                (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT) 
-                VALUES (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
-            using (var cmd = new OracleCommand(sql, conn))
-            {
-                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
-                cmd.Parameters.Add("remarkText", OracleDbType.Varchar2).Value = "Ticket Status: " + newStatus;
-                cmd.ExecuteNonQuery();
             }
         }
 
