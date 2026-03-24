@@ -1,12 +1,14 @@
 ﻿using BI_TICKETING_SYSTEM.Helpers;
 using iTextSharp.text;
 using iTextSharp.text.pdf;
+using iTextSharp.text.pdf.draw;
 using Oracle.ManagedDataAccess.Client;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.IO;
+using System.Web;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 using Image = iTextSharp.text.Image;
@@ -760,109 +762,211 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
         }
 
+
+
         // ===== EXPORT TO PDF & EXCEL =====
-        protected void btnExportPDF_Click(object sender, EventArgs e)
+
+        // ===== TABLE HELPERS 
+        private PdfPCell CreateCell(string text, Font font)
         {
-            DataTable dt = GetFilteredTickets();
+            PdfPCell cell = new PdfPCell(new Phrase(text, font));
+            cell.Padding = 5;
+            return cell;
+        }
 
-            using (MemoryStream ms = new MemoryStream())
+        private PdfPCell CreateCellFormatted(string text, BaseColor color)
+        {
+            Font font = new Font(Font.FontFamily.HELVETICA, 9, Font.BOLD, color);
+            PdfPCell cell = new PdfPCell(new Phrase(text, font));
+            cell.Padding = 5;
+            cell.HorizontalAlignment = Element.ALIGN_CENTER;
+            return cell;
+        }
+
+        private BaseColor GetStatusColor(string status)
+        {
+            switch (status.ToLower())
             {
-                Document doc = new Document(iTextSharp.text.PageSize.A4.Rotate(), 20, 20, 20, 20);
-                PdfWriter.GetInstance(doc, ms);
-                doc.Open();
-
-                // ===== HEADER TABLE (3 COLUMNS: FLAG | TITLE | SEAL)
-                PdfPTable headerTable = new PdfPTable(3);
-                headerTable.WidthPercentage = 100;
-                headerTable.SetWidths(new float[] { 1f, 3f, 1f });
-
-                // ===== LEFT IMAGE 
-                string flagPath = Server.MapPath("~/Images/ph-flag.png");
-                if (File.Exists(flagPath))
-                {
-                    Image flag = Image.GetInstance(flagPath);
-                    flag.ScaleToFit(60f, 60f);
-
-                    PdfPCell flagCell = new PdfPCell(flag);
-                    flagCell.Border = Rectangle.NO_BORDER;
-                    flagCell.HorizontalAlignment = Element.ALIGN_RIGHT;
-                    headerTable.AddCell(flagCell);
-                }
-                else
-                {
-                    headerTable.AddCell(new PdfPCell { Border = Rectangle.NO_BORDER });
-                }
-
-                // ===== CENTER TEXT
-                Font titleFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 14);
-                Font subFont = FontFactory.GetFont(FontFactory.HELVETICA, 10);
-
-                Paragraph headerText = new Paragraph();
-                headerText.Alignment = Element.ALIGN_CENTER;
-                headerText.Add(new Phrase("BUREAU OF IMMIGRATION\n", titleFont));
-                headerText.Add(new Phrase("Ticketing System Report\n", titleFont));
-                headerText.Add(new Phrase("\n"));
-                headerText.Add(new Phrase("Status: " + (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue) + "\n", subFont));
-                headerText.Add(new Phrase("Search: " + (string.IsNullOrEmpty(txtSearch.Text) ? "None" : txtSearch.Text) + "\n", subFont));
-                headerText.Add(new Phrase("Generated: " + DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt"), subFont));
-
-                PdfPCell textCell = new PdfPCell(headerText);
-                textCell.Border = Rectangle.NO_BORDER;
-                textCell.HorizontalAlignment = Element.ALIGN_CENTER;
-                headerTable.AddCell(textCell);
-
-                // ===== RIGHT IMAGE 
-                string sealPath = Server.MapPath("~/Images/bi-seal.png");
-                if (File.Exists(sealPath))
-                {
-                    Image seal = Image.GetInstance(sealPath);
-                    seal.ScaleToFit(60f, 60f);
-
-                    PdfPCell sealCell = new PdfPCell(seal);
-                    sealCell.Border = Rectangle.NO_BORDER;
-                    sealCell.HorizontalAlignment = Element.ALIGN_LEFT;
-                    headerTable.AddCell(sealCell);
-                }
-                else
-                {
-                    headerTable.AddCell(new PdfPCell { Border = Rectangle.NO_BORDER });
-                }
-
-                doc.Add(headerTable);
-                doc.Add(new Paragraph(" ")); // spacing
-
-                // ===== TABLE
-                PdfPTable table = new PdfPTable(dt.Columns.Count);
-                table.WidthPercentage = 100;
-
-                // Header styling
-                foreach (DataColumn col in dt.Columns)
-                {
-                    PdfPCell cell = new PdfPCell(new Phrase(col.ColumnName));
-                    cell.BackgroundColor = BaseColor.LIGHT_GRAY;
-                    cell.HorizontalAlignment = Element.ALIGN_CENTER;
-                    table.AddCell(cell);
-                }
-
-                // Data
-                foreach (DataRow row in dt.Rows)
-                {
-                    foreach (var cell in row.ItemArray)
-                    {
-                        table.AddCell(cell.ToString());
-                    }
-                }
-
-                doc.Add(table);
-                doc.Close();
-
-                Response.ContentType = "application/pdf";
-                Response.AddHeader("content-disposition", "attachment;filename=TicketReport.pdf");
-                Response.BinaryWrite(ms.ToArray());
-                Response.End();
+                case "resolved": return new BaseColor(0, 128, 0);
+                case "pending approval": return new BaseColor(255, 140, 0);
+                case "open": return new BaseColor(0, 102, 204);
+                case "in progress": return new BaseColor(128, 0, 128);
+                case "closed": return BaseColor.GRAY;
+                default: return BaseColor.BLACK;
             }
         }
 
+        private BaseColor GetPriorityColor(string priority)
+        {
+            switch (priority.ToLower())
+            {
+                case "low": return BaseColor.GRAY;
+                case "medium": return new BaseColor(0, 102, 204);
+                case "high": return new BaseColor(255, 140, 0);
+                case "urgent": return BaseColor.RED;
+                default: return BaseColor.BLACK;
+            }
+        }
+
+        // ===== EXPORT TO PDF
+        protected void btnExportPDF_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                DataTable dt = GetFilteredTickets();
+
+                if (dt.Rows.Count == 0)
+                {
+                    ShowError("No data to export.");
+                    return;
+                }
+
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    Document doc = new Document(iTextSharp.text.PageSize.A4.Rotate(), 20, 20, 20, 20);
+                    PdfWriter.GetInstance(doc, ms);
+                    doc.Open();
+
+                    // ===== HEADER TABLE (SEAL | TEXT | FLAG)
+                    PdfPTable headerTable = new PdfPTable(3);
+                    headerTable.WidthPercentage = 100;
+                    headerTable.SetWidths(new float[] { 1f, 3f, 1f });
+
+                    // ===== LEFT IMAGE (BI SEAL)
+                    string sealPath = Server.MapPath("~/Images/bi-seal.png");
+                    if (File.Exists(sealPath))
+                    {
+                        Image seal = Image.GetInstance(sealPath);
+                        seal.ScaleToFit(60f, 60f);
+
+                        PdfPCell sealCell = new PdfPCell(seal);
+                        sealCell.Border = Rectangle.NO_BORDER;
+                        sealCell.HorizontalAlignment = Element.ALIGN_LEFT;
+                        sealCell.VerticalAlignment = Element.ALIGN_MIDDLE;
+                        headerTable.AddCell(sealCell);
+                    }
+                    else
+                    {
+                        headerTable.AddCell(new PdfPCell { Border = Rectangle.NO_BORDER });
+                    }
+
+                    // ===== CENTER TEXT
+                    Font titleFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 14);
+                    Font subFont = FontFactory.GetFont(FontFactory.HELVETICA, 10);
+
+                    Paragraph headerText = new Paragraph();
+                    headerText.Alignment = Element.ALIGN_CENTER;
+                    headerText.Add(new Phrase("REPUBLIC OF THE PHILIPPINES\n", subFont));
+                    headerText.Add(new Phrase("BUREAU OF IMMIGRATION\n", titleFont));
+                    headerText.Add(new Phrase("INFORMATION TECHNOLOGY DIVISION\n", subFont));
+                    headerText.Add(new Phrase("Ticketing System Report\n\n", titleFont));
+
+                    headerText.Add(new Phrase("Status: " + (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue) + "\n", subFont));
+                    headerText.Add(new Phrase("Search: " + (string.IsNullOrEmpty(txtSearch.Text) ? "None" : txtSearch.Text) + "\n", subFont));
+                    headerText.Add(new Phrase("Generated: " + DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt"), subFont));
+
+                    PdfPCell textCell = new PdfPCell(headerText);
+                    textCell.Border = Rectangle.NO_BORDER;
+                    textCell.HorizontalAlignment = Element.ALIGN_CENTER;
+                    textCell.VerticalAlignment = Element.ALIGN_MIDDLE;
+                    headerTable.AddCell(textCell);
+
+                    // ===== RIGHT IMAGE (PH FLAG)
+                    string flagPath = Server.MapPath("~/Images/ph-flag.png");
+                    if (File.Exists(flagPath))
+                    {
+                        Image flag = Image.GetInstance(flagPath);
+                        flag.ScaleToFit(60f, 60f);
+
+                        PdfPCell flagCell = new PdfPCell(flag);
+                        flagCell.Border = Rectangle.NO_BORDER;
+                        flagCell.HorizontalAlignment = Element.ALIGN_RIGHT;
+                        flagCell.VerticalAlignment = Element.ALIGN_MIDDLE;
+                        headerTable.AddCell(flagCell);
+                    }
+                    else
+                    {
+                        headerTable.AddCell(new PdfPCell { Border = Rectangle.NO_BORDER });
+                    }
+
+                    doc.Add(headerTable);
+
+                    // ===== LINE SEPARATOR
+                    LineSeparator line = new LineSeparator();
+                    doc.Add(new Chunk(line));
+                    doc.Add(new Paragraph(" "));
+
+                    // ===== TABLE
+                    PdfPTable table = new PdfPTable(7);
+                    table.WidthPercentage = 100;
+
+                    table.SetWidths(new float[]
+                    {
+                8f, 18f, 35f, 15f, 15f, 25f, 25f
+                    });
+
+                    Font headerFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 10);
+                    Font cellFont = FontFactory.GetFont(FontFactory.HELVETICA, 9);
+
+                    string[] headers = {
+                "ID",
+                "Ticket No.",
+                "Title",
+                "Status",
+                "Priority",
+                "Date Created",
+                "Assigned To"
+            };
+
+                    foreach (string header in headers)
+                    {
+                        PdfPCell cell = new PdfPCell(new Phrase(header, headerFont));
+                        cell.BackgroundColor = new BaseColor(230, 230, 230);
+                        cell.HorizontalAlignment = Element.ALIGN_CENTER;
+                        cell.Padding = 6;
+                        table.AddCell(cell);
+                    }
+
+                    // ===== DATA
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        table.AddCell(CreateCell(row["TICKET_ID"].ToString(), cellFont));
+                        table.AddCell(CreateCell(row["TICKET_NUMBER"].ToString(), cellFont));
+                        table.AddCell(CreateCell(row["TITLE"].ToString(), cellFont));
+
+                        table.AddCell(CreateCellFormatted(row["STATUS"].ToString(), GetStatusColor(row["STATUS"].ToString())));
+                        table.AddCell(CreateCellFormatted(row["PRIORITY"].ToString(), GetPriorityColor(row["PRIORITY"].ToString())));
+
+                        DateTime date = Convert.ToDateTime(row["CREATED_AT"]);
+                        table.AddCell(CreateCell(date.ToString("MMM dd, yyyy hh:mm tt"), cellFont));
+
+                        table.AddCell(CreateCell(
+                            string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString(),
+                            cellFont
+                        ));
+                    }
+
+                    doc.Add(table);
+                    doc.Close();
+
+                    // ===== RESPONSE (FIXED DOWNLOAD ISSUE)
+                    Response.Clear();
+                    Response.ContentType = "application/pdf";
+                    Response.AddHeader("content-disposition", "attachment;filename=TicketReport.pdf");
+                    Response.Cache.SetCacheability(HttpCacheability.NoCache);
+
+                    Response.BinaryWrite(ms.ToArray());
+                    Response.Flush();
+                    Response.SuppressContent = true;
+                    HttpContext.Current.ApplicationInstance.CompleteRequest();
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("PDF Export Error: " + ex.Message);
+            }
+        }
+        // ===== EXPORT TO EXCEL
         protected void btnExportExcel_Click(object sender, EventArgs e)
         {
             DataTable dt = GetFilteredTickets(); 
@@ -880,7 +984,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                 // =========== HEADER
                 hw.Write("<h2>TICKET REPORT</h2>");
                 hw.Write("<p><b>Status:</b> " + (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue) + "</p>");
-                hw.Write("<p><b>Search:</b> " + (string.IsNullOrEmpty(txtSearch.Text) ? "None" : txtSearch.Text) + "</p>");
                 hw.Write("<p>Generated: " + DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt") + "</p><br/>");
 
                 GridView gv = new GridView();
