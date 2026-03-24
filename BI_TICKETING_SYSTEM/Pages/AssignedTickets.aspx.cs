@@ -147,23 +147,6 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
         }
 
-        // ===== REPEATER ITEM COMMAND =====
-        protected void rptTickets_ItemCommand(object source, RepeaterCommandEventArgs e)
-        {
-            int ticketId = Convert.ToInt32(e.CommandArgument);
-
-            switch (e.CommandName)
-            {
-                case "ViewTicket":
-                    LoadTicketForView(ticketId);
-                    break;
-                case "DeleteTicket":
-                    if (CurrentRole.ToLower() == "admin" || CurrentRole.ToLower() == "user")
-                        DeleteTicket(ticketId);
-                    break;
-            }
-        }
-
         // ===== VIEW TICKET =====
         private void LoadTicketForView(int ticketId)
         {
@@ -353,70 +336,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                 hfShowModal.Value = "view";
                 LoadTicketForView(ticketId);
                 ShowError("Error adding remark: " + ex.Message);
-            }
-        }
-
-        // ===== DELETE TICKET =====
-        private void DeleteTicket(int ticketId)
-        {
-            try
-            {
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
-                {
-                    conn.Open();
-
-                    var oldSnap = GetTicketSnapshot(ticketId, conn);
-                    string oldJson = oldSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(oldSnap);
-
-                    using (var delRemarks = new OracleCommand("DELETE FROM BI_OJT.TICKET_REMARKS WHERE TICKET_ID = :ticketId", conn))
-                    {
-                        delRemarks.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                        delRemarks.ExecuteNonQuery();
-                    }
-
-                    using (var delAudit = new OracleCommand("DELETE FROM BI_OJT.AUDIT_LOGS WHERE TICKET_ID = :ticketId", conn))
-                    {
-                        delAudit.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                        delAudit.ExecuteNonQuery();
-                    }
-
-                    using (var cmd = new OracleCommand("DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId", conn))
-                    {
-                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                        cmd.ExecuteNonQuery();
-                    }
-
-                    AuditHelper.Log(CurrentUserID, "DELETE_TICKET", oldJson, null);
-                    ShowSuccess("Ticket deleted successfully.");
-                    LoadTickets();
-                }
-            }
-            catch (Exception ex)
-            {
-                ShowError("Error deleting ticket: " + ex.Message);
-            }
-        }
-
-        // ===== Helper: snapshot of ticket values we track in audit =====
-        private Dictionary<string, object> GetTicketSnapshot(int ticketId, OracleConnection conn)
-        {
-            string sql = @"SELECT STATUS, CREATED_BY_USER_ID, ASSIGNED_TO_USER_ID, PRIORITY
-                           FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
-
-            using (var cmd = new OracleCommand(sql, conn))
-            {
-                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                using (var reader = cmd.ExecuteReader())
-                {
-                    if (!reader.Read()) return null;
-
-                    var snap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-                    snap["STATUS"] = reader["STATUS"] == DBNull.Value ? null : reader["STATUS"].ToString();
-                    snap["CREATED_BY_USER_ID"] = reader["CREATED_BY_USER_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["CREATED_BY_USER_ID"]);
-                    snap["ASSIGNED_TO_USER_ID"] = reader["ASSIGNED_TO_USER_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["ASSIGNED_TO_USER_ID"]);
-                    snap["PRIORITY"] = reader["PRIORITY"] == DBNull.Value ? null : reader["PRIORITY"].ToString();
-                    return snap;
-                }
             }
         }
 

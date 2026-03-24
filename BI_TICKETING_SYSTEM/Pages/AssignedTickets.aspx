@@ -22,13 +22,6 @@
     .table th { background: #001f54; color: white; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
     .table td { font-size: 13px; vertical-align: middle; }
     .table tbody tr:hover { background: #f0f4ff; }
-    .btn-action { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: none; }
-    .btn-view { background: #17a2b8; color: white; }
-    .btn-view:hover { background: #138496; color: white; }
-    .btn-delete
-    .btn-delete:hover { background: #c82333; color: white; }
-    .btn-approve { background: #28a745; color: white; }
-    .btn-approve:hover { background: #218838; color: white; }
     .modal-header { background: linear-gradient(135deg, #001f54, #003087); color: white; border-radius: 10px 10px 0 0; }
     .modal-header .close { color: white; opacity: 1; }
     .modal-content { border-radius: 10px; border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
@@ -96,7 +89,7 @@
 
             <!-- Tickets Table -->
             <div class="table-responsive">
-                <asp:Repeater ID="rptTickets" runat="server" OnItemCommand="rptTickets_ItemCommand">
+                <asp:Repeater ID="rptTickets" runat="server">
                     <HeaderTemplate>
                         <table class="table table-bordered table-hover">
                             <thead>
@@ -108,7 +101,6 @@
                                     <th>Created By</th>
                                     <th>Assigned To</th>
                                     <th>Date</th>
-                                    <th style="width:160px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -130,25 +122,6 @@
                             <td><%# Eval("CREATED_BY_NAME") %></td>
                             <td><%# string.IsNullOrEmpty(Eval("ASSIGNED_TO_NAME").ToString()) ? "<span style='color:#aaa;'>Unassigned</span>" : Eval("ASSIGNED_TO_NAME").ToString() %></td>
                             <td><%# Convert.ToDateTime(Eval("CREATED_AT")).ToString("MM/dd/yyyy") %></td>
-                            <td>
-                            <%-- View - everyone --%>
-                            <asp:LinkButton runat="server" CommandName="ViewTicket"
-                                CommandArgument='<%# Eval("TICKET_ID") %>'
-                                CssClass="btn btn-action btn-view mr-1"
-                                ToolTip="View">
-                                <i class="fas fa-eye"></i>
-                            </asp:LinkButton>
-
-                            <%-- Delete - admin and user (own tickets) --%>
-                            <asp:LinkButton runat="server" CommandName="DeleteTicket"
-                                CommandArgument='<%# Eval("TICKET_ID") %>'
-                                CssClass="btn btn-action btn-delete"
-                                Visible='<%# Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user" %>'
-                                ToolTip="Delete"
-                                OnClientClick="return confirmDelete(this);">
-                                <i class="fas fa-trash"></i>
-                            </asp:LinkButton>
-                        </td>
                         </tr>
                     </ItemTemplate>
                     <FooterTemplate>
@@ -328,24 +301,5 @@
 
     });
 
-    // ===== SWEETALERT2 DELETE CONFIRMATION =====
-    function confirmDelete(btn) {
-        Swal.fire({
-            title: 'Are you sure?',
-            text: 'This ticket will be permanently deleted!',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#dc3545',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Yes, delete it!',
-            cancelButtonText: 'Cancel'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                btn.removeAttribute('onclick');
-                btn.click();
-            }
-        });
-        return false;
-    }
-</script>
+    </script>
 </asp:Content>
