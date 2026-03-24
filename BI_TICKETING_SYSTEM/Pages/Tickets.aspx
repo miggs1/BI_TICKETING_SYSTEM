@@ -252,6 +252,43 @@
                                 ValidationGroup="CreateTicket" Font-Size="11px" />
                         </div>
                     </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Priority <span class="required-star">*</span></label>
+                            <asp:DropDownList ID="ddlCreatePriority" runat="server" CssClass="form-control filter-select">
+                                <asp:ListItem Value="">-- Select Priority --</asp:ListItem>
+                                <asp:ListItem Value="Low">Low</asp:ListItem>
+                                <asp:ListItem Value="Medium">Medium</asp:ListItem>
+                                <asp:ListItem Value="High">High</asp:ListItem>
+                                <asp:ListItem Value="Urgent">Urgent</asp:ListItem>
+                            </asp:DropDownList>
+                            <asp:RequiredFieldValidator ID="rfvCreatePriority" runat="server" ControlToValidate="ddlCreatePriority"
+                                InitialValue="" ErrorMessage="Priority is required." ForeColor="Red" Display="Dynamic"
+                                ValidationGroup="CreateTicket" Font-Size="11px" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Status <span class="required-star">*</span></label>
+                            <asp:DropDownList ID="ddlCreateStatus" runat="server" CssClass="form-control filter-select">
+                                <asp:ListItem Value="">-- Select Status --</asp:ListItem>
+                                <asp:ListItem Value="New">New</asp:ListItem>
+                                <asp:ListItem Value="Assigned">Assigned</asp:ListItem>
+                                <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
+                                <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
+                                <asp:ListItem Value="Closed">Closed</asp:ListItem>
+                            </asp:DropDownList>
+                            <asp:RequiredFieldValidator ID="rfvCreateStatus" runat="server" ControlToValidate="ddlCreateStatus"
+                                InitialValue="" ErrorMessage="Status is required." ForeColor="Red" Display="Dynamic"
+                                ValidationGroup="CreateTicket" Font-Size="11px" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Assigned To <span class="required-star">*</span></label>
+                            <asp:DropDownList ID="ddlCreateAssignedTo" runat="server" CssClass="form-control filter-select">
+                            </asp:DropDownList>
+                            <asp:RequiredFieldValidator ID="rfvCreateAssignedTo" runat="server" ControlToValidate="ddlCreateAssignedTo"
+                                InitialValue="" ErrorMessage="Assigned To is required." ForeColor="Red" Display="Dynamic"
+                                ValidationGroup="CreateTicket" Font-Size="11px" />
+                        </div>
+                    </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Created By</label>

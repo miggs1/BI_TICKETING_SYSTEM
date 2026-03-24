@@ -44,6 +44,8 @@ namespace BI_TICKETING_SYSTEM.Pages
                 txtCreatedBy.Text = CurrentUserName;
                 txtCreatedDate.Text = DateTime.Now.ToString("MM/dd/yyyy");
 
+                LoadCreateAssignedTo();
+
                 LoadTickets();
             }
         }
@@ -214,6 +216,40 @@ namespace BI_TICKETING_SYSTEM.Pages
                     foreach (DataRow row in dt.Rows)
                     {
                         ddl.Items.Add(new System.Web.UI.WebControls.ListItem(
+                            row["FULL_NAME"].ToString(),
+                            row["USER_ID"].ToString()
+                        ));
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void LoadCreateAssignedTo()
+        {
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql = @"SELECT USER_ID, FULL_NAME 
+                                   FROM BI_OJT.USERS 
+                                   WHERE UPPER(ROLE) = 'SUPPORT' 
+                                   AND UPPER(STATUS) = 'ACTIVE'
+                                   ORDER BY FULL_NAME";
+
+                    OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.BindByName = true;
+                    OracleDataAdapter da = new OracleDataAdapter(cmd);
+                    DataTable dt = new DataTable();
+                    da.Fill(dt);
+
+                    ddlCreateAssignedTo.Items.Clear();
+                    ddlCreateAssignedTo.Items.Add(new System.Web.UI.WebControls.ListItem("-- Select Support Staff --", ""));
+
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        ddlCreateAssignedTo.Items.Add(new System.Web.UI.WebControls.ListItem(
                             row["FULL_NAME"].ToString(),
                             row["USER_ID"].ToString()
                         ));
@@ -437,12 +473,16 @@ namespace BI_TICKETING_SYSTEM.Pages
                     idCmd.BindByName = true;
                     decimal ticketId = Convert.ToDecimal(idCmd.ExecuteScalar());
 
+                    string selectedStatus = ddlCreateStatus.SelectedValue;
+                    string selectedPriority = ddlCreatePriority.SelectedValue;
+                    string selectedAssignedTo = ddlCreateAssignedTo.SelectedValue;
+
                     string sql = @"INSERT INTO BI_OJT.TICKETS 
-                        (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, 
-                         CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT)
+                        (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, PRIORITY,
+                         ASSIGNED_TO_USER_ID, CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT)
                         VALUES 
-                        (:ticketId, :ticketNumber, :title, :description, 'New',
-                         :createdBy, SYSDATE, SYSDATE)";
+                        (:ticketId, :ticketNumber, :title, :description, :status, :priority,
+                         :assignedTo, :createdBy, SYSDATE, SYSDATE)";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
                     cmd.BindByName = true;
@@ -450,19 +490,30 @@ namespace BI_TICKETING_SYSTEM.Pages
                     cmd.Parameters.Add("ticketNumber", OracleDbType.Varchar2).Value = ticketNumber;
                     cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtTitle.Text.Trim();
                     cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtDescription.Text.Trim();
+                    cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = selectedStatus;
+                    cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value = selectedPriority;
+                    cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = Convert.ToInt32(selectedAssignedTo);
                     cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
                     cmd.ExecuteNonQuery();
 
                     var newSnap = GetTicketSnapshot((int)ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId, null, newSnap);
 
-                    InsertStatusRemark((int)ticketId, "New", conn);
+                    InsertStatusRemark((int)ticketId, selectedStatus, conn);
+                    if (selectedStatus.Equals("Assigned", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string assignedName = ddlCreateAssignedTo.SelectedItem.Text;
+                        InsertAssignmentRemark((int)ticketId, assignedName, conn);
+                    }
 
                     txtTitle.Text = "";
                     txtDescription.Text = "";
+                    ddlCreatePriority.SelectedIndex = 0;
+                    ddlCreateStatus.SelectedIndex = 0;
+                    ddlCreateAssignedTo.SelectedIndex = 0;
 
                     hfShowModal.Value = "";
-                    ShowSuccess($"Ticket {ticketNumber} submitted successfully! Status: New.");
+                    ShowSuccess($"Ticket {ticketNumber} submitted successfully! Status: {selectedStatus}.");
                     LoadTickets();
                 }
             }
