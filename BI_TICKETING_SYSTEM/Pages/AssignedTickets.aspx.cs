@@ -60,6 +60,8 @@ namespace BI_TICKETING_SYSTEM.Pages
             string filterStatus = ddlFilterStatus.SelectedValue;
             int userId = CurrentUserID;
             string role = CurrentRole.ToLower();
+            string fromDate = txtFromDate.Text;
+            string toDate = txtToDate.Text;
 
             try
             {
@@ -92,6 +94,13 @@ namespace BI_TICKETING_SYSTEM.Pages
                     if (!string.IsNullOrEmpty(filterStatus))
                         sql += " AND UPPER(T.STATUS) = UPPER(:filterStatus) ";
 
+
+                    if (!string.IsNullOrEmpty(fromDate))
+                        sql += " AND TRUNC(T.CREATED_AT) >= TO_DATE(:fromDate, 'YYYY-MM-DD') ";
+
+                    if (!string.IsNullOrEmpty(toDate))
+                        sql += " AND TRUNC(T.CREATED_AT) <= TO_DATE(:toDate, 'YYYY-MM-DD') ";
+
                     sql += " ORDER BY T.CREATED_AT DESC ";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
@@ -106,6 +115,12 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     if (!string.IsNullOrEmpty(filterStatus))
                         cmd.Parameters.Add("filterStatus", OracleDbType.Varchar2).Value = filterStatus;
+
+                    if (!string.IsNullOrEmpty(fromDate))
+                        cmd.Parameters.Add("fromDate", OracleDbType.Varchar2).Value = fromDate;
+
+                    if (!string.IsNullOrEmpty(toDate))
+                        cmd.Parameters.Add("toDate", OracleDbType.Varchar2).Value = toDate;
 
                     OracleDataAdapter da = new OracleDataAdapter(cmd);
                     DataTable dt = new DataTable();
@@ -470,6 +485,11 @@ namespace BI_TICKETING_SYSTEM.Pages
             CurrentPage = 1;
             LoadTickets();
         }
+        protected void txtDate_Changed(object sender, EventArgs e)
+        {
+            CurrentPage = 1;
+            LoadTickets();
+        }
 
         // ===== EXPORT =====
         private DataTable GetFilteredTickets()
@@ -478,20 +498,22 @@ namespace BI_TICKETING_SYSTEM.Pages
             string filterStatus = ddlFilterStatus.SelectedValue;
             int userId = CurrentUserID;
             string role = CurrentRole.ToLower();
+            string fromDate = txtFromDate.Text;
+            string toDate = txtToDate.Text;
 
             using (OracleConnection conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
 
                 string sql = @"
-            SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
-                   T.CREATED_AT, T.ASSIGNED_TO_USER_ID,
-                   U.FULL_NAME AS CREATED_BY_NAME,
-                   A.FULL_NAME AS ASSIGNED_TO_NAME
-            FROM BI_OJT.TICKETS T
-            LEFT JOIN BI_OJT.USERS U ON T.CREATED_BY_USER_ID = U.USER_ID
-            LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
-            WHERE 1=1 ";
+                    SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
+                           T.CREATED_AT, T.ASSIGNED_TO_USER_ID,
+                           U.FULL_NAME AS CREATED_BY_NAME,
+                           A.FULL_NAME AS ASSIGNED_TO_NAME
+                    FROM BI_OJT.TICKETS T
+                    LEFT JOIN BI_OJT.USERS U ON T.CREATED_BY_USER_ID = U.USER_ID
+                    LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
+                    WHERE 1=1 ";
 
                 if (role == "support")
                     sql += " AND T.ASSIGNED_TO_USER_ID = :assignedTo ";
@@ -503,6 +525,12 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                 if (!string.IsNullOrEmpty(filterStatus))
                     sql += " AND UPPER(T.STATUS) = UPPER(:filterStatus) ";
+
+                if (!string.IsNullOrEmpty(fromDate))
+                    sql += " AND TRUNC(T.CREATED_AT) >= TO_DATE(:fromDate, 'YYYY-MM-DD') ";
+
+                if (!string.IsNullOrEmpty(toDate))
+                    sql += " AND TRUNC(T.CREATED_AT) <= TO_DATE(:toDate, 'YYYY-MM-DD') ";
 
                 sql += " ORDER BY T.CREATED_AT DESC ";
 
@@ -516,6 +544,12 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                 if (!string.IsNullOrEmpty(filterStatus))
                     cmd.Parameters.Add("filterStatus", OracleDbType.Varchar2).Value = filterStatus;
+
+                if (!string.IsNullOrEmpty(fromDate))
+                    cmd.Parameters.Add("fromDate", OracleDbType.Varchar2).Value = fromDate;
+
+                if (!string.IsNullOrEmpty(toDate))
+                    cmd.Parameters.Add("toDate", OracleDbType.Varchar2).Value = toDate;
 
                 OracleDataAdapter da = new OracleDataAdapter(cmd);
                 DataTable dt = new DataTable();
@@ -621,11 +655,13 @@ namespace BI_TICKETING_SYSTEM.Pages
                     headerText.Alignment = Element.ALIGN_CENTER;
                     headerText.Add(new Phrase("REPUBLIC OF THE PHILIPPINES\n", subFont));
                     headerText.Add(new Phrase("BUREAU OF IMMIGRATION\n", titleFont));
-                    headerText.Add(new Phrase("INFORMATION TECHNOLOGY DIVISION\n", subFont));
+                    headerText.Add(new Phrase("MANAGEMENT INFORMATION SYSTEMS DIVISION (MISD)\n", subFont));
                     headerText.Add(new Phrase("Ticketing System Report\n\n", titleFont));
 
                     headerText.Add(new Phrase("Status: " + (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue) + "\n", subFont));
                     headerText.Add(new Phrase("Search: " + (string.IsNullOrEmpty(txtSearch.Text) ? "None" : txtSearch.Text) + "\n", subFont));
+                    headerText.Add(new Phrase("From: " + (string.IsNullOrEmpty(txtFromDate.Text) ? "N/A" : txtFromDate.Text) + "\n", subFont));
+                    headerText.Add(new Phrase("To: " + (string.IsNullOrEmpty(txtToDate.Text) ? "N/A" : txtToDate.Text) + "\n", subFont)); 
                     headerText.Add(new Phrase("Generated: " + DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt"), subFont));
 
                     PdfPCell textCell = new PdfPCell(headerText);
@@ -732,11 +768,11 @@ namespace BI_TICKETING_SYSTEM.Pages
         // ===== EXPORT TO EXCEL
         protected void btnExportExcel_Click(object sender, EventArgs e)
         {
-            DataTable dt = GetFilteredTickets(); 
+            DataTable dt = GetFilteredTickets();
 
             Response.Clear();
             Response.Buffer = true;
-            Response.AddHeader("content-disposition", "attachment;filename=Tickets.xls");
+            Response.AddHeader("content-disposition", "attachment;filename=TicketReport.xls");
             Response.Charset = "";
             Response.ContentType = "application/vnd.ms-excel";
 
@@ -744,16 +780,74 @@ namespace BI_TICKETING_SYSTEM.Pages
             {
                 HtmlTextWriter hw = new HtmlTextWriter(sw);
 
-                // =========== HEADER
-                hw.Write("<h2>TICKET REPORT</h2>");
-                hw.Write("<p><b>Status:</b> " + (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue) + "</p>");
-                hw.Write("<p>Generated: " + DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt") + "</p><br/>");
+                // ===== FIX IMAGE PATH 
+                string baseUrl = Request.Url.GetLeftPart(UriPartial.Authority);
+                string sealUrl = baseUrl + ResolveUrl("~/Images/bi-seal.png");
+                string flagUrl = baseUrl + ResolveUrl("~/Images/ph-flag.png");
 
+                // ===== HEADER TABLE (SEAL | TITLE | FLAG)
+                hw.Write(@"
+                    <table style='width:100%; margin-bottom:20px; font-family:Arial;'>
+                        <tr>
+                            <td style='width:20%; text-align:left;'>
+                                <img src='" + sealUrl + @"' height='60'/>
+                            </td>
+
+                            <td style='width:60%; text-align:center;'>
+                                <div style='font-size:14px; font-weight:bold;'>REPUBLIC OF THE PHILIPPINES</div>
+                                <div style='font-size:16px; font-weight:bold;'>BUREAU OF IMMIGRATION</div>
+                                <div style='font-size:12px;'>MANAGEMENT INFORMATION SYSTEMS DIVISION (MISD)</div>
+                                <div style='font-size:14px; font-weight:bold; margin-top:5px;'>Ticketing System Report</div>
+                            </td>
+
+                            <td style='width:20%; text-align:right;'>
+                                <img src='" + flagUrl + @"' height='60'/>
+                            </td>
+                        </tr>
+                    </table>
+                    ");
+
+                // ===== FILTER DETAILS
+                hw.Write("<table style='margin-bottom:15px; font-family:Arial;'>");
+                hw.Write("<tr><td><b>Status:</b></td><td>" +
+                    (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue) +
+                    "</td></tr>");
+
+                hw.Write("<tr><td><b>Search:</b></td><td>" +
+                    (string.IsNullOrEmpty(txtSearch.Text) ? "None" : txtSearch.Text) +
+                    "</td></tr>");
+
+                hw.Write("<tr><td><b>From Date:</b></td><td>" +
+                    (string.IsNullOrEmpty(txtFromDate.Text) ? "N/A" : txtFromDate.Text) +
+                    "</td></tr>");
+
+                hw.Write("<tr><td><b>To Date:</b></td><td>" +
+                    (string.IsNullOrEmpty(txtToDate.Text) ? "N/A" : txtToDate.Text) +
+                    "</td></tr>");
+
+                hw.Write("<tr><td><b>Generated:</b></td><td>" +
+                    DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt") +
+                    "</td></tr>");
+                hw.Write("</table>");
+
+                hw.Write("<hr/>");
+
+                // ===== TABLE (GRIDVIEW)
                 GridView gv = new GridView();
                 gv.DataSource = dt;
                 gv.DataBind();
+
+                // ===== STYLE TABLE
+                gv.HeaderStyle.BackColor = System.Drawing.Color.LightGray;
+                gv.HeaderStyle.Font.Bold = true;
+                gv.RowStyle.BackColor = System.Drawing.Color.White;
+                gv.AlternatingRowStyle.BackColor = System.Drawing.ColorTranslator.FromHtml("#f2f2f2");
+
+                gv.Attributes["style"] = "border-collapse:collapse; width:100%; font-family:Arial;";
+
                 gv.RenderControl(hw);
 
+                // ===== OUTPUT
                 Response.Output.Write(sw.ToString());
                 Response.Flush();
                 Response.End();
@@ -808,7 +902,7 @@ namespace BI_TICKETING_SYSTEM.Pages
             pnlError.Visible = false;
         }
 
-        private void ShowError(string msg)
+        private void ShowError(string msg) 
         {
             hfSwalMessage.Value = msg;
             hfSwalType.Value = "error";

@@ -75,6 +75,7 @@
                     </div>
                 </div>
                 <div class="col-md-3">
+                    <!-- STATUS FILTER -->
                     <asp:DropDownList ID="ddlFilterStatus" runat="server" CssClass="form-control filter-select" AutoPostBack="true" OnSelectedIndexChanged="ddlFilter_Changed">
                         <asp:ListItem Value="">-- All Status --</asp:ListItem>
                         <asp:ListItem Value="New">New</asp:ListItem>
@@ -83,6 +84,9 @@
                         <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
                         <asp:ListItem Value="Closed">Closed</asp:ListItem>
                     </asp:DropDownList>
+                    <!-- DATE FILTER -->
+                    <asp:TextBox ID="txtFromDate" runat="server" TextMode="Date" CssClass="form-control" />
+                    <asp:TextBox ID="txtToDate" runat="server" TextMode="Date" CssClass="form-control" />
                 </div>
                 <div class="col-md-3">
                     <asp:Button ID="btnExportPDF" runat="server" Text="Export to PDF"
