@@ -131,7 +131,7 @@
                             <td><%# Eval("TITLE") %></td>
                             <td><%# Eval("CREATED_BY_NAME") %></td>
                             <td>
-                                <asp:DropDownList ID="ddlRowPriority" runat="server" CssClass="dropdown-priority" AutoPostBack="true"
+                                <asp:DropDownList ID="ddlRowPriority" runat="server" CssClass="dropdown-priority"
                                     Visible='<%# Session["UserRole"] != null && (Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user") %>'
                                     OnSelectedIndexChanged="ddlRowPriority_Changed">
                                     <asp:ListItem Value="">NOT SET</asp:ListItem>
@@ -168,7 +168,7 @@
                                 <asp:HiddenField ID="hfRowTicketId" runat="server" Value='<%# Eval("TICKET_ID") %>' />
                             </td>
                             <td>
-                                <asp:DropDownList ID="ddlRowAssign" runat="server" CssClass="dropdown-assign" AutoPostBack="true"
+                                <asp:DropDownList ID="ddlRowAssign" runat="server" CssClass="dropdown-assign"
                                     Visible='<%# Session["UserRole"] != null && (Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user") %>'
                                     OnSelectedIndexChanged="ddlRowAssign_Changed">
                                 </asp:DropDownList>
@@ -277,34 +277,10 @@
                                 ValidationGroup="CreateTicket" Font-Size="11px" />
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Status <span class="required-star">*</span></label>
-                            <asp:DropDownList ID="ddlCreateStatus" runat="server" CssClass="form-control filter-select">
-                                <asp:ListItem Value="">-- Select Status --</asp:ListItem>
-                                <asp:ListItem Value="New">New</asp:ListItem>
-                                <asp:ListItem Value="Assigned">Assigned</asp:ListItem>
-                                <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
-                                <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
-                                <asp:ListItem Value="Closed">Closed</asp:ListItem>
-                            </asp:DropDownList>
-                            <asp:RequiredFieldValidator ID="rfvCreateStatus" runat="server" ControlToValidate="ddlCreateStatus"
-                                InitialValue="" ErrorMessage="Status is required." ForeColor="Red" Display="Dynamic"
-                                ValidationGroup="CreateTicket" Font-Size="11px" />
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Assigned To <span class="required-star">*</span></label>
-                            <asp:DropDownList ID="ddlCreateAssignedTo" runat="server" CssClass="form-control filter-select">
-                            </asp:DropDownList>
-                            <asp:RequiredFieldValidator ID="rfvCreateAssignedTo" runat="server" ControlToValidate="ddlCreateAssignedTo"
-                                InitialValue="" ErrorMessage="Assigned To is required." ForeColor="Red" Display="Dynamic"
-                                ValidationGroup="CreateTicket" Font-Size="11px" />
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
                             <label class="form-label">Created By</label>
                             <asp:TextBox ID="txtCreatedBy" runat="server" CssClass="form-control" ReadOnly="true" />
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4">
                             <label class="form-label">Created Date</label>
                             <asp:TextBox ID="txtCreatedDate" runat="server" CssClass="form-control" ReadOnly="true" />
                         </div>
@@ -515,16 +491,14 @@
         var oldValue = ddl.getAttribute('data-oldvalue');
         var newValue = ddl.value;
 
-        if (oldValue === newValue) {
-            return false;
-        }
+        if (oldValue === newValue) return false;
 
-        if (newValue === 'New' || newValue === 'Assigned') {
+        if (newValue === 'Assigned') {
             ddl.value = oldValue;
             Swal.fire({
                 icon: 'error',
                 title: 'Not Allowed',
-                text: '"New" and "Assigned" are set automatically.',
+                text: '"Assigned" status is set automatically when a support staff is selected.',
                 toast: true,
                 position: 'top-end',
                 showConfirmButton: false,
@@ -533,11 +507,97 @@
             return false;
         }
 
+        if (newValue !== 'New') {
+            var row = ddl.closest('tr');
+            var assignDdl = row.querySelector('select[id*="ddlRowAssign"]');
+            if (assignDdl && !assignDdl.value) {
+                ddl.value = oldValue;
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Assignment Required',
+                    text: 'Please assign a support staff before changing the status.',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 2500
+                });
+                return false;
+            }
+        }
+
         ddl.value = oldValue;
 
         Swal.fire({
             title: 'Are you sure?',
             text: 'Do you want to change the ticket status to "' + newValue + '"?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#001f54',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, update it',
+            cancelButtonText: 'Cancel'
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                ddl.value = newValue;
+                ddl.setAttribute('data-oldvalue', newValue);
+                __doPostBack(ddl.name, '');
+            }
+        });
+
+        return false;
+    }
+
+    function confirmPriorityChange(ddl) {
+        var oldValue = ddl.getAttribute('data-oldvalue');
+        var newValue = ddl.value;
+
+        if (oldValue === newValue) return false;
+
+        var label = '';
+        for (var i = 0; i < ddl.options.length; i++) {
+            if (ddl.options[i].value === newValue) { label = ddl.options[i].text; break; }
+        }
+
+        ddl.value = oldValue;
+
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'Do you want to change the ticket priority to "' + label + '"?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#001f54',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, update it',
+            cancelButtonText: 'Cancel'
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                ddl.value = newValue;
+                ddl.setAttribute('data-oldvalue', newValue);
+                __doPostBack(ddl.name, '');
+            }
+        });
+
+        return false;
+    }
+
+    function confirmAssignChange(ddl) {
+        var oldValue = ddl.getAttribute('data-oldvalue');
+        var newValue = ddl.value;
+
+        if (oldValue === newValue) return false;
+
+        var label = '';
+        for (var i = 0; i < ddl.options.length; i++) {
+            if (ddl.options[i].value === newValue) { label = ddl.options[i].text; break; }
+        }
+
+        var msg = newValue ? 'Do you want to assign this ticket to "' + label + '"?' : 'Do you want to unassign this ticket?';
+
+        ddl.value = oldValue;
+
+        Swal.fire({
+            title: 'Are you sure?',
+            text: msg,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#001f54',

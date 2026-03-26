@@ -44,8 +44,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                 txtCreatedBy.Text = CurrentUserName;
                 txtCreatedDate.Text = DateTime.Now.ToString("MM/dd/yyyy");
 
-                LoadCreateAssignedTo();
-
                 LoadTickets();
             }
         }
@@ -156,15 +154,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                         ddlRowStatus.SelectedValue = currentStatus;
 
                     ddlRowStatus.Attributes["data-oldvalue"] = currentStatus;
-
-                    string role = CurrentRole.ToLower();
-
-                    if (role == "admin" || role == "user")
-                    {
-                        ddlRowStatus.Attributes["onchange"] = "return confirmStatusChange(this);";
-                    }
-                    
-
+                    ddlRowStatus.Attributes["onchange"] = "return confirmStatusChange(this);";
                 }
 
                 DropDownList ddlRowPriority = (DropDownList)e.Item.FindControl("ddlRowPriority");
@@ -175,18 +165,25 @@ namespace BI_TICKETING_SYSTEM.Pages
                         ddlRowPriority.SelectedValue = currentPriority;
                     else
                         ddlRowPriority.SelectedValue = "";
+
+                    ddlRowPriority.Attributes["data-oldvalue"] = currentPriority;
+                    ddlRowPriority.Attributes["onchange"] = "return confirmPriorityChange(this);";
                 }
 
                 DropDownList ddlRowAssign = (DropDownList)e.Item.FindControl("ddlRowAssign");
                 if (ddlRowAssign != null && ddlRowAssign.Visible)
                 {
                     LoadSupportUsersIntoDropDown(ddlRowAssign);
+                    string assignedValue = "";
                     if (row["ASSIGNED_TO_USER_ID"] != DBNull.Value)
                     {
-                        string assignedId = row["ASSIGNED_TO_USER_ID"].ToString();
-                        if (ddlRowAssign.Items.FindByValue(assignedId) != null)
-                            ddlRowAssign.SelectedValue = assignedId;
+                        assignedValue = row["ASSIGNED_TO_USER_ID"].ToString();
+                        if (ddlRowAssign.Items.FindByValue(assignedValue) != null)
+                            ddlRowAssign.SelectedValue = assignedValue;
                     }
+
+                    ddlRowAssign.Attributes["data-oldvalue"] = assignedValue;
+                    ddlRowAssign.Attributes["onchange"] = "return confirmAssignChange(this);";
                 }
             }
         }
@@ -225,40 +222,6 @@ namespace BI_TICKETING_SYSTEM.Pages
             catch { }
         }
 
-        private void LoadCreateAssignedTo()
-        {
-            try
-            {
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
-                {
-                    conn.Open();
-                    string sql = @"SELECT USER_ID, FULL_NAME 
-                                   FROM BI_OJT.USERS 
-                                   WHERE UPPER(ROLE) = 'SUPPORT' 
-                                   AND UPPER(STATUS) = 'ACTIVE'
-                                   ORDER BY FULL_NAME";
-
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.BindByName = true;
-                    OracleDataAdapter da = new OracleDataAdapter(cmd);
-                    DataTable dt = new DataTable();
-                    da.Fill(dt);
-
-                    ddlCreateAssignedTo.Items.Clear();
-                    ddlCreateAssignedTo.Items.Add(new System.Web.UI.WebControls.ListItem("-- Select Support Staff --", ""));
-
-                    foreach (DataRow row in dt.Rows)
-                    {
-                        ddlCreateAssignedTo.Items.Add(new System.Web.UI.WebControls.ListItem(
-                            row["FULL_NAME"].ToString(),
-                            row["USER_ID"].ToString()
-                        ));
-                    }
-                }
-            }
-            catch { }
-        }
-
         protected void ddlRowStatus_Changed(object sender, EventArgs e)
         {
             DropDownList ddl = (DropDownList)sender;
@@ -268,10 +231,9 @@ namespace BI_TICKETING_SYSTEM.Pages
             int ticketId = Convert.ToInt32(hf.Value);
             string newStatus = ddl.SelectedValue;
 
-            if (newStatus.Equals("New", StringComparison.OrdinalIgnoreCase) ||
-                newStatus.Equals("Assigned", StringComparison.OrdinalIgnoreCase))
+            if (newStatus.Equals("Assigned", StringComparison.OrdinalIgnoreCase))
             {
-                ShowError("'New' and 'Assigned' statuses are set automatically.");
+                ShowError("'Assigned' status is set automatically when a support staff is selected.");
                 LoadTickets();
                 return;
             }
@@ -300,6 +262,23 @@ namespace BI_TICKETING_SYSTEM.Pages
                         }
                     }
 
+                    if (!newStatus.Equals("New", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string checkAssignSql = "SELECT ASSIGNED_TO_USER_ID FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                        using (OracleCommand checkCmd = new OracleCommand(checkAssignSql, conn))
+                        {
+                            checkCmd.BindByName = true;
+                            checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                            object assignedId = checkCmd.ExecuteScalar();
+                            if (assignedId == null || assignedId == DBNull.Value)
+                            {
+                                ShowError("Please assign a support staff before changing the status.");
+                                LoadTickets();
+                                return;
+                            }
+                        }
+                    }
+
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
 
                     string sql = @"UPDATE BI_OJT.TICKETS 
@@ -312,6 +291,10 @@ namespace BI_TICKETING_SYSTEM.Pages
                     else if (newStatus.Equals("Closed", StringComparison.OrdinalIgnoreCase))
                     {
                         sql += ", CLOSED_AT = SYSDATE";
+                    }
+                    else if (newStatus.Equals("New", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sql += ", ASSIGNED_TO_USER_ID = NULL";
                     }
 
                     sql += " WHERE TICKET_ID = :ticketId";
@@ -473,9 +456,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                     idCmd.BindByName = true;
                     decimal ticketId = Convert.ToDecimal(idCmd.ExecuteScalar());
 
-                    string selectedStatus = ddlCreateStatus.SelectedValue;
                     string selectedPriority = ddlCreatePriority.SelectedValue;
-                    string selectedAssignedTo = ddlCreateAssignedTo.SelectedValue;
 
                     string sql = @"INSERT INTO BI_OJT.TICKETS 
                         (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, PRIORITY,
@@ -490,30 +471,23 @@ namespace BI_TICKETING_SYSTEM.Pages
                     cmd.Parameters.Add("ticketNumber", OracleDbType.Varchar2).Value = ticketNumber;
                     cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtTitle.Text.Trim();
                     cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtDescription.Text.Trim();
-                    cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = selectedStatus;
+                    cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = "New";
                     cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value = selectedPriority;
-                    cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = Convert.ToInt32(selectedAssignedTo);
+                    cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = DBNull.Value;
                     cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
                     cmd.ExecuteNonQuery();
 
                     var newSnap = GetTicketSnapshot((int)ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId, null, newSnap);
 
-                    InsertStatusRemark((int)ticketId, selectedStatus, conn);
-                    if (selectedStatus.Equals("Assigned", StringComparison.OrdinalIgnoreCase))
-                    {
-                        string assignedName = ddlCreateAssignedTo.SelectedItem.Text;
-                        InsertAssignmentRemark((int)ticketId, assignedName, conn);
-                    }
+                    InsertStatusRemark((int)ticketId, "New", conn);
 
                     txtTitle.Text = "";
                     txtDescription.Text = "";
                     ddlCreatePriority.SelectedIndex = 0;
-                    ddlCreateStatus.SelectedIndex = 0;
-                    ddlCreateAssignedTo.SelectedIndex = 0;
 
                     hfShowModal.Value = "";
-                    ShowSuccess($"Ticket {ticketNumber} submitted successfully! Status: {selectedStatus}.");
+                    ShowSuccess($"Ticket {ticketNumber} submitted successfully!");
                     LoadTickets();
                 }
             }
