@@ -120,6 +120,8 @@
                                     <th>Assigned To</th>
                                     <th>Created Date</th>
                                     <th>Last Updated</th>
+                                    <th>Due Date</th>
+                                    <th>Aging</th>
                                     <th style="width:120px;">Actions</th>
                                 </tr>
                             </thead>
@@ -175,6 +177,15 @@
                             </td>
                             <td><%# Convert.ToDateTime(Eval("CREATED_AT")).ToString("MM/dd/yyyy") %></td>
                             <td><%# Eval("UPDATED_AT") == DBNull.Value ? "-" : Convert.ToDateTime(Eval("UPDATED_AT")).ToString("MM/dd/yyyy") %></td>
+                            <td>
+                                <span class="<%# GetSlaCssClass(Eval("DUE_DATE"), Eval("STATUS")) %>">
+                                    <%# Eval("DUE_DATE") != DBNull.Value ? Convert.ToDateTime(Eval("DUE_DATE")).ToString("MM/dd/yyyy") : "Not Set" %>
+                                </span>
+                            </td>
+                            <td>
+                                <strong><%# GetAging(Eval("CREATED_AT"), Eval("RESOLVED_AT"), Eval("STATUS")) %></strong>
+                            </td>
+
                             <td>
                                 <asp:LinkButton runat="server" CommandName="ViewTicket"
                                     CommandArgument='<%# Eval("TICKET_ID") %>'
@@ -251,6 +262,12 @@
                                 ValidationGroup="CreateTicket" Font-Size="11px" />
                         </div>
                     </div>
+                    <div class ="row mb-3">
+                        <div class="col-12">
+                            <label class="form-label">Attach Screenshot (Optional)</label>
+                            <asp:FileUpload ID="fuAttachment" runat="server" CssClass="form-control" />
+                        </div>
+                    </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Created By</label>
@@ -306,6 +323,15 @@
                             <p class="form-control-plaintext" style="white-space:pre-wrap; background:#f8f9fa; border-radius:8px; padding:10px;">
                                 <asp:Label ID="lblViewDescription" runat="server" />
                             </p>
+                        </div>
+                    </div>
+                    <div class ="row mb-3">
+                        <div class="col-12">
+                            <label class="form-label">Attachment</label><br />
+                            <asp:HyperLink ID="hlViewAttachment" runat="server" Target="_blank" CssClass="btn btn-sm btn-outline-primary" Visible="false">
+                                <i class="fas fa-paperclip mr-1"></i> View Screenshot
+                            </asp:HyperLink>
+                            <asp:Label ID="lblNoAttachment" runat="server" Text="No Attachment Provided." CssClass="text-muted" Visible="false" />
                         </div>
                     </div>
                     <div class="row mb-3">

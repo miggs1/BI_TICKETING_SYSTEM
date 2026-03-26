@@ -7,6 +7,8 @@ using BI_TICKETING_SYSTEM.Helpers;
 using System.Collections.Generic;
 using iTextSharp.text;
 using iTextSharp.text.pdf;
+using System.Configuration;
+using System.Drawing;
 
 namespace BI_TICKETING_SYSTEM.Pages
 {
@@ -62,9 +64,12 @@ namespace BI_TICKETING_SYSTEM.Pages
                 {
                     conn.Open();
 
+                    //CREATED TWO FIELDS
+
                     string sql = @"
                         SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
                                T.CREATED_AT, T.UPDATED_AT, T.CREATED_BY_USER_ID, T.ASSIGNED_TO_USER_ID,
+                               T.DUE_DATE, T.RESOLVED_AT,
                                U.FULL_NAME AS CREATED_BY_NAME, U.ROLE AS CREATED_BY_ROLE,
                                A.FULL_NAME AS ASSIGNED_TO_NAME
                         FROM BI_OJT.TICKETS T
@@ -354,6 +359,8 @@ namespace BI_TICKETING_SYSTEM.Pages
 
             try
             {
+                string attachmentPath = SaveAttachment((FileUpload)Master.FindControl("MainContent").FindControl("fuCreateAttachment"));
+                DateTime? dueDate = CalculateSlaDueDate("meidum", DateTime.Now);
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
@@ -386,6 +393,8 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     txtTitle.Text = "";
                     txtDescription.Text = "";
+
+                    EmailHelper.SendEmail("angjandell24@gmail.com", $"New Ticket Submitted: {ticketNumber}", $"A new ticket has been submitted by {CurrentUserName}. <br/><b>Title:</b> {txtTitle.Text}");
 
                     hfShowModal.Value = "";
                     ShowSuccess($"Ticket {ticketNumber} submitted successfully! Status: Pending Approval.");
@@ -449,6 +458,20 @@ namespace BI_TICKETING_SYSTEM.Pages
                         lblViewAssignedTo.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString();
                         lblViewAssignedToRole.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_ROLE"].ToString()) ? "-" : row["ASSIGNED_TO_ROLE"].ToString();
 
+                        //new attachment view logic
+                        string attachmentPath = row["ATTACHMENT_PATH"].ToString();
+                        if (!string.IsNullOrEmpty(attachmentPath))
+                        {
+                            hlViewAttachment.NavigateUrl = ResolveUrl(attachmentPath);
+                            hlViewAttachment.Visible = true;
+                            lblNoAttachment.Visible = false;
+                        }
+                        else
+                        {
+                            hlViewAttachment.Visible = false;
+                            lblNoAttachment.Visible = true;
+                        }
+
                         LoadTicketRemarks(ticketId, conn);
 
                         hfShowModal.Value = "view";
@@ -492,7 +515,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                     pnlNoRemarks.Visible = true;
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 pnlNoRemarks.Visible = true;
                 rptRemarks.DataSource = null;
@@ -599,6 +622,59 @@ namespace BI_TICKETING_SYSTEM.Pages
             CurrentPage++;
             LoadTickets();
         }
+
+        //march 27, 2026 - 00:40
+        private DateTime? CalculateSlaDueDate(string priority, DateTime startDate)
+        {
+            switch (priority?.ToLower())
+            {
+                case "critical": return startDate.AddHours(4);
+                case "high": return startDate.AddDays(1);
+                case "medium": return startDate.AddDays(3);
+                case "low": return startDate.AddDays(7);
+                default: return null; //unassigned
+            }
+        }
+        //how many days a ticket has been opened calculator
+        protected string GetAging(object createdAt, object resolvedAt, object status)
+        {
+            if (createdAt == DBNull.Value) return "0 Days";
+
+            DateTime start = Convert.ToDateTime(createdAt);
+            DateTime end = DateTime.Now;
+
+            string stat = status?.ToString();
+            if ((stat == "Resolved" || stat == "Closed") && resolvedAt != DBNull.Value)
+            {
+                end = Convert.ToDateTime(resolvedAt); //to stop the calculation
+            }
+            int days = (int)Math.Floor((end - start).TotalDays);
+            return days == 0 ? "Today" : $"{days} Days";
+        }
+
+        //to highlight overdue tickets red
+        protected string GetSlaCssClass(object dueDate, object status)
+        {
+            if (dueDate == DBNull.Value || status?.ToString() == "Resolved" || status?.ToString() == "Closed")
+                return "";
+            if (Convert.ToDateTime(dueDate) < DateTime.Now)
+                return "text-danger font-weight-bold";
+
+            return "";
+        }
+        private string SaveAttachment(FileUpload fileUploadControl)
+        {
+            if (fileUploadControl.HasFile)
+            {
+                string fileName = Guid.NewGuid().ToString().Substring(0, 8) + "_" + fileUploadControl.FileName;
+                string serverPath = Server.MapPath("~/Uploads/Tickets/");
+                System.IO.Directory.CreateDirectory(serverPath);
+                fileUploadControl.SaveAs(serverPath + fileName);
+                return "~/Uploads/Tickets/" + fileName;
+            }
+            return null;
+        }
+
 
         public string GetStatusBadge(string status)
         {
