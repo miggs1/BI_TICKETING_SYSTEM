@@ -221,8 +221,8 @@
             <div class="d-flex justify-content-between align-items-center mt-3">
                 <asp:Label ID="lblPaginationInfo" runat="server" CssClass="pagination-info" />
                 <div>
-                    <asp:Button ID="btnPrev" runat="server" Text="← Prev" CssClass="btn btn-sm btn-outline-secondary mr-1" OnClick="btnPrev_Click" />
-                    <asp:Button ID="btnNext" runat="server" Text="Next →" CssClass="btn btn-sm btn-outline-secondary" OnClick="btnNext_Click" />
+                    <asp:Button ID="btnPrev" runat="server" Text="Prev" CssClass="btn btn-sm btn-outline-secondary mr-1" OnClick="btnPrev_Click" />
+                    <asp:Button ID="btnNext" runat="server" Text="Next" CssClass="btn btn-sm btn-outline-secondary" OnClick="btnNext_Click" />
                 </div>
             </div>
         </div>
@@ -394,7 +394,7 @@
                                 <div class="remark-item">
                                     <div class="remark-header">
                                         <span class="remark-author"><%# Eval("FULL_NAME") %></span>
-                                        <span class="text-muted ml-2">•</span>
+                                        <span class="text-muted ml-2"> - </span>
                                         <span class="text-muted ml-2"><%# Convert.ToDateTime(Eval("CREATED_AT")).ToString("MMM dd, yyyy hh:mm tt") %></span>
                                     </div>
                                     <div class="remark-text">
