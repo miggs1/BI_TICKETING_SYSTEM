@@ -125,20 +125,9 @@
                                 </span>
                             </td>
                             <td>
-                                <asp:DropDownList ID="ddlRowPriority" runat="server" CssClass="dropdown-priority" AutoPostBack="true"
-                                    Visible='<%# Session["UserRole"] != null && Session["UserRole"].ToString().ToLower() == "support" %>'
-                                    OnSelectedIndexChanged="ddlRowPriority_Changed">
-                                    <asp:ListItem Value="">NOT SET</asp:ListItem>
-                                    <asp:ListItem Value="LOW">Low</asp:ListItem>
-                                    <asp:ListItem Value="MEDIUM">Medium</asp:ListItem>
-                                    <asp:ListItem Value="HIGH">High</asp:ListItem>
-                                    <asp:ListItem Value="URGENT">Urgent</asp:ListItem>
-                                </asp:DropDownList>
-                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || Session["UserRole"].ToString().ToLower() != "support" %>'>
-                                    <span class="badge <%# GetPriorityBadge(Eval("PRIORITY").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
-                                        <%# string.IsNullOrEmpty(Eval("PRIORITY").ToString()) ? "Not Set" : Eval("PRIORITY").ToString() %>
-                                    </span>
-                                </asp:PlaceHolder>
+                                <span class="badge <%# GetPriorityBadge(Eval("PRIORITY").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
+                                    <%# string.IsNullOrEmpty(Eval("PRIORITY").ToString()) ? "Not Set" : Eval("PRIORITY").ToString() %>
+                                </span>
                                 <asp:HiddenField ID="hfRowTicketId" runat="server" Value='<%# Eval("TICKET_ID") %>' />
                             </td>
                             <td><%# Eval("CREATED_BY_NAME") %></td>

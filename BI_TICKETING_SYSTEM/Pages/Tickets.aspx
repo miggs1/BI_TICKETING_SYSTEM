@@ -45,7 +45,9 @@
     .alert-danger-custom { background: #f8d7da; border: 1px solid #f5c6cb; border-left: 4px solid #dc3545; border-radius: 8px; color: #721c24; padding: 10px 15px; font-size: 13px; }
     .remarks-section { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 20px; }
     .remarks-title { font-size: 13px; font-weight: 600; color: #001f54; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 15px; border-bottom: 2px solid #001f54; padding-bottom: 8px; }
-    .remark-item { background: white; border-left: 3px solid #007bff; border-radius: 6px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .remark-item { background: white; border-radius: 6px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .remark-status { border-left: 3px solid #007bff;}
+    .remark-note { border-left: 3px solid #28a745; }
     .remark-header { font-size: 11px; color: #666; margin-bottom: 8px; }
     .remark-text { font-size: 13px; color: #333; line-height: 1.6; white-space: pre-wrap; }
     .remark-author { font-weight: 600; color: #001f54; }
@@ -393,11 +395,11 @@
 
                     <div class="remarks-section">
                         <div class="remarks-title">
-                            <i class="fas fa-comments mr-2"></i>Support Remarks
+                            <i class="fas fa-comments mr-2"></i>Audit Trail
                         </div>
                         <asp:Repeater ID="rptRemarks" runat="server">
                             <ItemTemplate>
-                                <div class="remark-item">
+                                <div class='remark-item <%# Eval("REMARK_TEXT").ToString().StartsWith("Ticket Status:") ? "remark-status" : "remark-note" %>'>
                                     <div class="remark-header">
                                         <span class="remark-author"><%# Eval("FULL_NAME") %></span>
                                         <span class="text-muted ml-2"> - </span>
