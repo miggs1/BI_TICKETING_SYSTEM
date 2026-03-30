@@ -186,6 +186,15 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.RequiredFieldValidator rfvDescription;
 
         /// <summary>
+        /// fuAttachment control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.FileUpload fuAttachment;
+
+        /// <summary>
         /// ddlCreatePriority control.
         /// </summary>
         /// <remarks>
@@ -202,22 +211,6 @@ namespace BI_TICKETING_SYSTEM.Pages
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
         protected global::System.Web.UI.WebControls.RequiredFieldValidator rfvCreatePriority;
-
-        /// <summary>
-        /// txtCreatedBy control.
-        /// </summary>
-        /// <remarks>
-        /// Auto-generated field.
-        /// To modify move field declaration from designer file to code-behind file.
-        /// </remarks>
-        /// <summary>
-        /// fuAttachment control.
-        /// </summary>
-        /// <remarks>
-        /// Auto-generated field.
-        /// To modify move field declaration from designer file to code-behind file.
-        /// </remarks>
-        protected global::System.Web.UI.WebControls.FileUpload fuAttachment;
 
         /// <summary>
         /// txtCreatedBy control.
@@ -282,13 +275,6 @@ namespace BI_TICKETING_SYSTEM.Pages
         /// </remarks>
         protected global::System.Web.UI.WebControls.Label lblViewDescription;
 
-        /// <summary>
-        /// lblViewCreatedBy control.
-        /// </summary>
-        /// <remarks>
-        /// Auto-generated field.
-        /// To modify move field declaration from designer file to code-behind file.
-        /// </remarks>
         /// <summary>
         /// hlViewAttachment control.
         /// </summary>
@@ -424,13 +410,6 @@ namespace BI_TICKETING_SYSTEM.Pages
         /// </remarks>
         protected global::System.Web.UI.WebControls.Button btnSaveEdit;
 
-        /// <summary>
-        /// hfShowModal control.
-        /// </summary>
-        /// <remarks>
-        /// Auto-generated field.
-        /// To modify move field declaration from designer file to code-behind file.
-        /// </remarks>
         /// <summary>
         /// hfShowModal control.
         /// </summary>

@@ -447,8 +447,8 @@ namespace BI_TICKETING_SYSTEM.Pages
 
             try
             {
-                string attachmentPath = SaveAttachment((FileUpload)Master.FindControl("MainContent").FindControl("fuCreateAttachment"));
-                DateTime? dueDate = CalculateSlaDueDate("meidum", DateTime.Now);
+                string attachmentPath = SaveAttachment((FileUpload)Master.FindControl("MainContent").FindControl("fuAttachment"));
+                DateTime? dueDate = CalculateSlaDueDate("medium", DateTime.Now);
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();

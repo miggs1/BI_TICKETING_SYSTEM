@@ -276,14 +276,11 @@
                                 ValidationGroup="CreateTicket" Font-Size="11px" />
                         </div>
                     </div>
-                    <div class ="row mb-3">
+                    <div class="row mb-3">
                         <div class="col-12">
                             <label class="form-label">Attach Screenshot (Optional)</label>
                             <asp:FileUpload ID="fuAttachment" runat="server" CssClass="form-control" />
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-4">
