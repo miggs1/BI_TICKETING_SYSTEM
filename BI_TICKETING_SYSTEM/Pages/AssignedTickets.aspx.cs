@@ -1,14 +1,17 @@
 ﻿using BI_TICKETING_SYSTEM.Helpers;
 using iTextSharp.text;
 using iTextSharp.text.pdf;
+using iTextSharp.text.pdf.draw;
 using Oracle.ManagedDataAccess.Client;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.IO;
+using System.Web;
 using System.Web.UI;
 using System.Web.UI.WebControls;
+using Image = iTextSharp.text.Image;
 
 namespace BI_TICKETING_SYSTEM.Pages
 {
@@ -57,6 +60,8 @@ namespace BI_TICKETING_SYSTEM.Pages
             string filterStatus = ddlFilterStatus.SelectedValue;
             int userId = CurrentUserID;
             string role = CurrentRole.ToLower();
+            string fromDate = txtFromDate.Text;
+            string toDate = txtToDate.Text;
 
             try
             {
@@ -66,7 +71,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     string sql = @"
                         SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
-                               T.CREATED_AT,
+                               T.CREATED_AT, T.ASSIGNED_TO_USER_ID,
                                U.FULL_NAME AS CREATED_BY_NAME,
                                A.FULL_NAME AS ASSIGNED_TO_NAME
                         FROM BI_OJT.TICKETS T
@@ -89,6 +94,13 @@ namespace BI_TICKETING_SYSTEM.Pages
                     if (!string.IsNullOrEmpty(filterStatus))
                         sql += " AND UPPER(T.STATUS) = UPPER(:filterStatus) ";
 
+
+                    if (!string.IsNullOrEmpty(fromDate))
+                        sql += " AND TRUNC(T.CREATED_AT) >= TO_DATE(:fromDate, 'YYYY-MM-DD') ";
+
+                    if (!string.IsNullOrEmpty(toDate))
+                        sql += " AND TRUNC(T.CREATED_AT) <= TO_DATE(:toDate, 'YYYY-MM-DD') ";
+
                     sql += " ORDER BY T.CREATED_AT DESC ";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
@@ -103,6 +115,12 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     if (!string.IsNullOrEmpty(filterStatus))
                         cmd.Parameters.Add("filterStatus", OracleDbType.Varchar2).Value = filterStatus;
+
+                    if (!string.IsNullOrEmpty(fromDate))
+                        cmd.Parameters.Add("fromDate", OracleDbType.Varchar2).Value = fromDate;
+
+                    if (!string.IsNullOrEmpty(toDate))
+                        cmd.Parameters.Add("toDate", OracleDbType.Varchar2).Value = toDate;
 
                     OracleDataAdapter da = new OracleDataAdapter(cmd);
                     DataTable dt = new DataTable();
@@ -141,33 +159,6 @@ namespace BI_TICKETING_SYSTEM.Pages
             catch (Exception ex)
             {
                 ShowError("Error loading tickets: " + ex.Message);
-            }
-        }
-
-        // ===== REPEATER ITEM COMMAND =====
-        protected void rptTickets_ItemCommand(object source, RepeaterCommandEventArgs e)
-        {
-            int ticketId = Convert.ToInt32(e.CommandArgument);
-
-            switch (e.CommandName)
-            {
-                case "ViewTicket":
-                    LoadTicketForView(ticketId);
-                    break;
-                case "ApproveTicket":
-                    if (CurrentRole.ToLower() == "admin")
-                        ApproveTicket(ticketId);
-                    break;
-                case "EditTicket":
-                    if (CurrentRole.ToLower() == "admin" ||
-                        CurrentRole.ToLower() == "support" ||
-                        CurrentRole.ToLower() == "user")
-                        LoadTicketForEdit(ticketId);
-                    break;
-                case "DeleteTicket":
-                    if (CurrentRole.ToLower() == "admin" || CurrentRole.ToLower() == "user")
-                        DeleteTicket(ticketId);
-                    break;
             }
         }
 
@@ -212,26 +203,36 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                         // Determine whether current user may add remarks:
                         // Admins may always add. Support may add only if assigned to this ticket.
+                        // show/hide add-remark UI server-side
                         bool canAddRemark = false;
-                        string role = CurrentRole?.ToLower() ?? "user";
-                        if (role == "admin")
+                        bool isClosed = string.Equals(row["STATUS"].ToString(), "Closed", StringComparison.OrdinalIgnoreCase);
+
+                        string role = CurrentRole.ToLower();
+
+                        if (!isClosed)
                         {
-                            canAddRemark = true;
-                        }
-                        else if (role == "support")
-                        {
-                            if (row["ASSIGNED_TO_USER_ID"] != DBNull.Value)
+                            if (role == "admin")
                             {
-                                int assignedId = Convert.ToInt32(row["ASSIGNED_TO_USER_ID"]);
-                                if (assignedId == CurrentUserID) canAddRemark = true;
+                                canAddRemark = true;
+                            }
+                            else if (role == "support")
+                            {
+                                if (row["ASSIGNED_TO_USER_ID"] != DBNull.Value)
+                                {
+                                    int assignedId = Convert.ToInt32(row["ASSIGNED_TO_USER_ID"]);
+                                    if (assignedId == CurrentUserID)
+                                    {
+                                        canAddRemark = true;
+                                    }
+                                }
                             }
                         }
 
-                        // show/hide add-remark UI server-side
                         pnlAddRemark.Visible = canAddRemark;
+                        pnlClosedRemarkNotice.Visible = isClosed;
+                        txtNewRemark.Text = "";
 
                         hfShowModal.Value = "view";
-                        LoadTickets();
                     }
                 }
             }
@@ -289,305 +290,166 @@ namespace BI_TICKETING_SYSTEM.Pages
             int ticketId = Convert.ToInt32(hfViewTicketId.Value);
             string remark = txtNewRemark.Text.Trim();
 
-            if (string.IsNullOrEmpty(remark)) return;
-
-            using (OracleConnection conn = new OracleConnection(DatabaseHelper.GetConnectionString()))
+            if (string.IsNullOrEmpty(remark))
             {
-                // Use the exact column names from your CREATE TABLE statement
-                string sql = @"
-            INSERT INTO BI_OJT.TICKET_REMARKS 
-            (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT) 
-            VALUES 
-            (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
-
-                using (OracleCommand cmd = new OracleCommand(sql, conn))
-                {
-                    cmd.Parameters.Add(":ticketId", OracleDbType.Int32).Value = ticketId;
-                    cmd.Parameters.Add(":userId", OracleDbType.Int32).Value = CurrentUserID;
-                    cmd.Parameters.Add(":remarkText", OracleDbType.Clob).Value = remark;
-
-                    conn.Open();
-                    cmd.ExecuteNonQuery();
-                }
-                var newSnap = new Dictionary<string, object> {
-                { "REMARK_TEXT", remark },
-                { "TICKET_ID", ticketId }
-            };
-                AuditHelper.LogAction(CurrentUserID, "ADD_REMARK", "TICKET_REMARKS", ticketId, null, newSnap);
+                ShowError("Please enter a remark.");
+                hfShowModal.Value = "view";
+                LoadTicketForView(ticketId);
+                return;
             }
 
-            txtNewRemark.Text = "";
-            LoadTicketForView(ticketId); // Refresh the view
-            ShowSuccess("Remark added successfully!");
-        }
-        
-        // ===== APPROVE TICKET =====
-        private void ApproveTicket(int ticketId)
-        {
             try
             {
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
-                    using (var tran = conn.BeginTransaction())
+
+                    string checkStatusSql = "SELECT STATUS FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                    using (OracleCommand checkCmd = new OracleCommand(checkStatusSql, conn))
                     {
-                        var oldSnap = GetTicketSnapshot(ticketId, conn);
-
-                        string sql = @"UPDATE BI_OJT.TICKETS 
-                                       SET STATUS = :status, UPDATED_AT = SYSDATE 
-                                       WHERE TICKET_ID = :ticketId";
-                        using (var cmd = new OracleCommand(sql, conn))
+                        checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        string status = checkCmd.ExecuteScalar()?.ToString();
+                        if (string.Equals(status, "Closed", StringComparison.OrdinalIgnoreCase))
                         {
-                            cmd.Transaction = tran;
-                            cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = "Open";
-                            cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                            int rows = cmd.ExecuteNonQuery();
-                            if (rows != 1)
-                            {
-                                tran.Rollback();
-                                ShowError("Ticket not found or not updated.");
-                                return;
-                            }
+                            ShowError("Cannot add remark to a closed ticket.");
+                            hfShowModal.Value = "view";
+                            LoadTicketForView(ticketId);
+                            return;
                         }
-
-                        var newSnap = GetTicketSnapshot(ticketId, conn);
-
-                        string oldJson = oldSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(oldSnap);
-                        string newJson = newSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(newSnap);
-
-                        AuditHelper.Log(CurrentUserID, "APPROVE_TICKET", oldJson, newJson);
-
-                        tran.Commit();
-
-                        ShowSuccess("Ticket approved successfully! Status changed to Open.");
-                        LoadTickets();
                     }
+
+                    string sql = @"
+                        INSERT INTO BI_OJT.TICKET_REMARKS
+                        (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT)
+                        VALUES
+                        (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
+
+                    using (OracleCommand cmd = new OracleCommand(sql, conn))
+                    {
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+                        cmd.Parameters.Add("remarkText", OracleDbType.Clob).Value = remark;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    var newSnap = new Dictionary<string, object>
+                    {
+                        { "REMARK_TEXT",remark },
+                        { "TICKET_ID", ticketId }
+                    };
+
+                    AuditHelper.LogAction(CurrentUserID, "ADD+REMARK", "TICKET_REMARKS", ticketId, null, newSnap);
                 }
+
+                txtNewRemark.Text = "";
+                hfShowModal.Value = "view";
+                LoadTicketForView(ticketId);
+                ShowSuccess("Remark added successfully!");
             }
             catch (Exception ex)
             {
-                ShowError("Error approving ticket: " + ex.Message);
+                hfShowModal.Value = "view";
+                LoadTicketForView(ticketId);
+                ShowError("Error adding remark: " + ex.Message);
             }
         }
 
-        // ===== EDIT TICKET =====
-        private void LoadTicketForEdit(int ticketId)
+        // ===== ITEM DATA BOUND =====
+        protected void rptTickets_ItemDataBound(object sender, RepeaterItemEventArgs e)
         {
-            try
+            if (e.Item.ItemType == ListItemType.Item || e.Item.ItemType == ListItemType.AlternatingItem)
             {
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                DataRowView row = (DataRowView)e.Item.DataItem;
+
+                DropDownList ddlRowPriority = (DropDownList)e.Item.FindControl("ddlRowPriority");
+                if (ddlRowPriority != null && ddlRowPriority.Visible)
                 {
-                    conn.Open();
-                    string sql = "SELECT * FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-
-                    OracleDataAdapter da = new OracleDataAdapter(cmd);
-                    DataTable dt = new DataTable();
-                    da.Fill(dt);
-
-                    if (dt.Rows.Count > 0)
-                    {
-                        DataRow row = dt.Rows[0];
-                        hfEditTicketId.Value = ticketId.ToString();
-                        txtEditTicketNumber.Text = row["TICKET_NUMBER"].ToString();
-                        ddlEditStatus.SelectedValue = row["STATUS"].ToString();
-
-                        if (CurrentRole.ToLower() == "admin")
-                        {
-                            // Admin sees all fields
-                            pnlEditTitle.Visible = true;
-                            pnlEditDescription.Visible = true;
-                            pnlAssignTo.Visible = true;
-                            pnlUserEdit.Visible = false;
-
-                            txtEditTitle.Text = row["TITLE"].ToString();
-                            txtEditDescription.Text = row["DESCRIPTION"].ToString();
-                            ddlEditPriority.SelectedValue = row["PRIORITY"].ToString();
-
-                            LoadSupportUsers();
-                            if (row["ASSIGNED_TO_USER_ID"] != DBNull.Value)
-                            {
-                                string assignedId = row["ASSIGNED_TO_USER_ID"].ToString();
-                                if (ddlAssignTo.Items.FindByValue(assignedId) != null)
-                                    ddlAssignTo.SelectedValue = assignedId;
-                            }
-                        }
-                        else if (CurrentRole.ToLower() == "support")
-                        {
-                            // Support only sees Status
-                            pnlEditTitle.Visible = false;
-                            pnlEditDescription.Visible = false;
-                            pnlAssignTo.Visible = false;
-                            pnlUserEdit.Visible = false;
-                            pnlEditPriorityCategory.Visible = false;
-                        }
-                        else if (CurrentRole.ToLower() == "user")
-                        {
-                            // User sees Title, Description, Priority only
-                            pnlEditTitle.Visible = false;
-                            pnlEditDescription.Visible = false;
-                            pnlAssignTo.Visible = false;
-                            ddlEditStatus.Enabled = false;
-                            pnlUserEdit.Visible = true;
-                            pnlEditPriorityCategory.Visible = true;
-
-                            txtUserEditTitle.Text = row["TITLE"].ToString();
-                            txtUserEditDescription.Text = row["DESCRIPTION"].ToString();
-                        }
-
-                        hfShowModal.Value = "edit";
-                        LoadTickets();
-                    }
+                    string currentPriority = row["PRIORITY"]?.ToString()?.ToUpper() ?? "";
+                    if (!string.IsNullOrEmpty(currentPriority) && ddlRowPriority.Items.FindByValue(currentPriority) != null)
+                        ddlRowPriority.SelectedValue = currentPriority;
+                    else
+                        ddlRowPriority.SelectedValue = "";
                 }
             }
-            catch (Exception ex)
+        }
+
+        // ===== REPEATER ITEM COMMAND =====
+        protected void rptTickets_ItemCommand(object source, RepeaterCommandEventArgs e)
+        {
+            int ticketId = Convert.ToInt32(e.CommandArgument);
+
+            switch (e.CommandName)
             {
-                ShowError("Error loading ticket for edit: " + ex.Message);
+                case "ViewTicket":
+                    LoadTicketForView(ticketId);
+                    break;
             }
         }
 
-        protected void btnSaveEdit_Click(object sender, EventArgs e)
+        // ===== PRIORITY CHANGE =====
+        protected void ddlRowPriority_Changed(object sender, EventArgs e)
         {
-            if (!Page.IsValid) return;
+            DropDownList ddl = (DropDownList)sender;
+            RepeaterItem item = (RepeaterItem)ddl.NamingContainer;
+            HiddenField hf = (HiddenField)item.FindControl("hfRowTicketId");
+
+            int ticketId = Convert.ToInt32(hf.Value);
+            string newPriority = ddl.SelectedValue;
 
             try
             {
-                int ticketId = Convert.ToInt32(hfEditTicketId.Value);
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
-
-                    var oldSnap = GetTicketSnapshot(ticketId, conn);
-
-                    string sql;
-                    OracleCommand cmd;
 
                     if (CurrentRole.ToLower() == "support")
                     {
-                        sql = @"UPDATE BI_OJT.TICKETS 
-                        SET STATUS = :status, UPDATED_AT = SYSDATE
-                        WHERE TICKET_ID = :ticketId";
+                        string checkSql = "SELECT ASSIGNED_TO_USER_ID FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                        using (OracleCommand checkCmd = new OracleCommand(checkSql, conn))
+                        {
+                            checkCmd.BindByName = true;
+                            checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                            object assignedId = checkCmd.ExecuteScalar();
 
-                        cmd = new OracleCommand(sql, conn);
-                        cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = ddlEditStatus.SelectedValue;
-                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                            if (assignedId == null || assignedId == DBNull.Value || Convert.ToInt32(assignedId) != CurrentUserID)
+                            {
+                                ShowError("You can only update priority for tickets assigned to you.");
+                                LoadTickets();
+                                return;
+                            }
+                        }
                     }
-                    else if (CurrentRole.ToLower() == "user")
-                    {
-                        sql = @"UPDATE BI_OJT.TICKETS 
-                        SET TITLE = :title,
-                            DESCRIPTION = :description,
-                            UPDATED_AT = SYSDATE
-                        WHERE TICKET_ID = :ticketId";
-
-                        cmd = new OracleCommand(sql, conn);
-                        cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtUserEditTitle.Text.Trim();
-                        cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtUserEditDescription.Text.Trim();
-                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                    }
-                    else
-                    {
-                        sql = @"UPDATE BI_OJT.TICKETS 
-                        SET TITLE = :title,
-                            DESCRIPTION = :description,
-                            STATUS = :status,
-                            PRIORITY = :priority,
-                            ASSIGNED_TO_USER_ID = :assignedTo,
-                            UPDATED_AT = SYSDATE
-                        WHERE TICKET_ID = :ticketId";
-
-                        cmd = new OracleCommand(sql, conn);
-                        cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtEditTitle.Text.Trim();
-                        cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtEditDescription.Text.Trim();
-                        cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = ddlEditStatus.SelectedValue;
-                        cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value = string.IsNullOrEmpty(ddlEditPriority.SelectedValue) ? (object)DBNull.Value : ddlEditPriority.SelectedValue;
-                        cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = string.IsNullOrEmpty(ddlAssignTo.SelectedValue) ? (object)DBNull.Value : Convert.ToInt32(ddlAssignTo.SelectedValue);
-                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                    }
-
-                    cmd.ExecuteNonQuery();
-
-                    var newSnap = GetTicketSnapshot(ticketId, conn);
-                    AuditHelper.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId, oldSnap, newSnap);
-
-                    hfShowModal.Value = "";
-                    ShowSuccess("Ticket updated successfully!");
-                    LoadTickets();
-                }
-            }
-            catch (Exception ex)
-            {
-                hfShowModal.Value = "edit";
-                ShowError("Error updating ticket: " + ex.Message);
-            }
-        }
-
-        // ===== DELETE TICKET =====
-        private void DeleteTicket(int ticketId)
-        {
-            try
-            {
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
-                {
-                    conn.Open();
 
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
 
-                    string sql = "DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                    cmd.ExecuteNonQuery();
+                    string sql = @"UPDATE BI_OJT.TICKETS 
+                                   SET PRIORITY = :priority, UPDATED_AT = SYSDATE 
+                                   WHERE TICKET_ID = :ticketId";
 
-                    AuditHelper.LogAction(CurrentUserID, "DELETE_TICKET", "TICKETS", ticketId, oldSnap, null);
-                    ShowSuccess("Ticket deleted successfully.");
+                    using (var cmd = new OracleCommand(sql, conn))
+                    {
+                        cmd.BindByName = true;
+                        cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value =
+                            string.IsNullOrEmpty(newPriority) ? (object)DBNull.Value : newPriority;
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    var newSnap = GetTicketSnapshot(ticketId, conn);
+                    AuditHelper.LogAction(CurrentUserID, "UPDATE_PRIORITY", "TICKETS", ticketId, oldSnap, newSnap);
+
+                    ShowSuccess("Priority updated successfully!");
                     LoadTickets();
                 }
             }
             catch (Exception ex)
             {
-                ShowError("Error deleting ticket: " + ex.Message);
+                ShowError("Error updating priority: " + ex.Message);
+                LoadTickets();
             }
         }
 
-        // ===== LOAD SUPPORT USERS =====
-        private void LoadSupportUsers()
-        {
-            try
-            {
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
-                {
-                    conn.Open();
-                    string sql = @"SELECT USER_ID, FULL_NAME 
-                                   FROM BI_OJT.USERS 
-                                   WHERE UPPER(ROLE) = 'SUPPORT' 
-                                   AND UPPER(STATUS) = 'ACTIVE'
-                                   ORDER BY FULL_NAME";
-
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    OracleDataAdapter da = new OracleDataAdapter(cmd);
-                    DataTable dt = new DataTable();
-                    da.Fill(dt);
-
-                    ddlAssignTo.Items.Clear();
-                    ddlAssignTo.Items.Add(new System.Web.UI.WebControls.ListItem("-- Unassigned --", ""));
-
-                    foreach (DataRow row in dt.Rows)
-                    {
-                        ddlAssignTo.Items.Add(new System.Web.UI.WebControls.ListItem(
-                            row["FULL_NAME"].ToString(),
-                            row["USER_ID"].ToString()
-                        ));
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                ShowError("Error loading support users: " + ex.Message);
-            }
-        }
-
-        // ===== Helper: snapshot of ticket values we track in audit =====
+        // ===== TICKET SNAPSHOT =====
         private Dictionary<string, object> GetTicketSnapshot(int ticketId, OracleConnection conn)
         {
             string sql = @"SELECT STATUS, CREATED_BY_USER_ID, ASSIGNED_TO_USER_ID, PRIORITY
@@ -595,6 +457,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
             using (var cmd = new OracleCommand(sql, conn))
             {
+                cmd.BindByName = true;
                 cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                 using (var reader = cmd.ExecuteReader())
                 {
@@ -622,6 +485,11 @@ namespace BI_TICKETING_SYSTEM.Pages
             CurrentPage = 1;
             LoadTickets();
         }
+        protected void txtDate_Changed(object sender, EventArgs e)
+        {
+            CurrentPage = 1;
+            LoadTickets();
+        }
 
         // ===== EXPORT =====
         private DataTable GetFilteredTickets()
@@ -630,20 +498,22 @@ namespace BI_TICKETING_SYSTEM.Pages
             string filterStatus = ddlFilterStatus.SelectedValue;
             int userId = CurrentUserID;
             string role = CurrentRole.ToLower();
+            string fromDate = txtFromDate.Text;
+            string toDate = txtToDate.Text;
 
             using (OracleConnection conn = DatabaseHelper.GetConnection())
             {
                 conn.Open();
 
                 string sql = @"
-            SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
-                   T.CREATED_AT,
-                   U.FULL_NAME AS CREATED_BY_NAME,
-                   A.FULL_NAME AS ASSIGNED_TO_NAME
-            FROM BI_OJT.TICKETS T
-            LEFT JOIN BI_OJT.USERS U ON T.CREATED_BY_USER_ID = U.USER_ID
-            LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
-            WHERE 1=1 ";
+                    SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
+                           T.CREATED_AT, T.ASSIGNED_TO_USER_ID,
+                           U.FULL_NAME AS CREATED_BY_NAME,
+                           A.FULL_NAME AS ASSIGNED_TO_NAME
+                    FROM BI_OJT.TICKETS T
+                    LEFT JOIN BI_OJT.USERS U ON T.CREATED_BY_USER_ID = U.USER_ID
+                    LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
+                    WHERE 1=1 ";
 
                 if (role == "support")
                     sql += " AND T.ASSIGNED_TO_USER_ID = :assignedTo ";
@@ -655,6 +525,12 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                 if (!string.IsNullOrEmpty(filterStatus))
                     sql += " AND UPPER(T.STATUS) = UPPER(:filterStatus) ";
+
+                if (!string.IsNullOrEmpty(fromDate))
+                    sql += " AND TRUNC(T.CREATED_AT) >= TO_DATE(:fromDate, 'YYYY-MM-DD') ";
+
+                if (!string.IsNullOrEmpty(toDate))
+                    sql += " AND TRUNC(T.CREATED_AT) <= TO_DATE(:toDate, 'YYYY-MM-DD') ";
 
                 sql += " ORDER BY T.CREATED_AT DESC ";
 
@@ -669,6 +545,12 @@ namespace BI_TICKETING_SYSTEM.Pages
                 if (!string.IsNullOrEmpty(filterStatus))
                     cmd.Parameters.Add("filterStatus", OracleDbType.Varchar2).Value = filterStatus;
 
+                if (!string.IsNullOrEmpty(fromDate))
+                    cmd.Parameters.Add("fromDate", OracleDbType.Varchar2).Value = fromDate;
+
+                if (!string.IsNullOrEmpty(toDate))
+                    cmd.Parameters.Add("toDate", OracleDbType.Varchar2).Value = toDate;
+
                 OracleDataAdapter da = new OracleDataAdapter(cmd);
                 DataTable dt = new DataTable();
                 da.Fill(dt);
@@ -677,58 +559,220 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
         }
 
+
+
         // ===== EXPORT TO PDF & EXCEL =====
-        protected void btnExportPDF_Click(object sender, EventArgs e)
+
+        // ===== TABLE HELPERS 
+        private PdfPCell CreateCell(string text, Font font)
         {
-            DataTable dt = GetFilteredTickets(); 
+            PdfPCell cell = new PdfPCell(new Phrase(text, font));
+            cell.Padding = 5;
+            return cell;
+        }
 
-            using (MemoryStream ms = new MemoryStream())
+        private PdfPCell CreateCellFormatted(string text, BaseColor color)
+        {
+            Font font = new Font(Font.FontFamily.HELVETICA, 9, Font.BOLD, color);
+            PdfPCell cell = new PdfPCell(new Phrase(text, font));
+            cell.Padding = 5;
+            cell.HorizontalAlignment = Element.ALIGN_CENTER;
+            return cell;
+        }
+
+        private BaseColor GetStatusColor(string status)
+        {
+            switch (status.ToLower())
             {
-                Document doc = new Document(iTextSharp.text.PageSize.A4.Rotate(), 10, 10, 10, 10); PdfWriter.GetInstance(doc, ms);
-                doc.Open();
-
-                // =========== HEADER
-                doc.Add(new Paragraph("TICKET REPORT", FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 16)));
-                doc.Add(new Paragraph(" "));
-                doc.Add(new Paragraph("Status: " + (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue)));
-                doc.Add(new Paragraph("Search: " + (string.IsNullOrEmpty(txtSearch.Text) ? "None" : txtSearch.Text)));
-                doc.Add(new Paragraph("Generated: " + DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt")));
-                doc.Add(new Paragraph(" "));
-
-                PdfPTable table = new PdfPTable(dt.Columns.Count);
-
-                // Headers
-                foreach (DataColumn col in dt.Columns)
-                {
-                    table.AddCell(new Phrase(col.ColumnName));
-                }
-
-                // Data
-                foreach (DataRow row in dt.Rows)
-                {
-                    foreach (var cell in row.ItemArray)
-                    {
-                        table.AddCell(cell.ToString());
-                    }
-                }
-
-                doc.Add(table);
-                doc.Close();
-
-                Response.ContentType = "application/pdf";
-                Response.AddHeader("content-disposition", "attachment;filename=Tickets.pdf");
-                Response.BinaryWrite(ms.ToArray());
-                Response.End();
+                case "resolved": return new BaseColor(0, 128, 0);
+                case "pending approval": return new BaseColor(255, 140, 0);
+                case "open": return new BaseColor(0, 102, 204);
+                case "in progress": return new BaseColor(128, 0, 128);
+                case "closed": return BaseColor.GRAY;
+                default: return BaseColor.BLACK;
             }
         }
 
+        private BaseColor GetPriorityColor(string priority)
+        {
+            switch (priority.ToLower())
+            {
+                case "low": return BaseColor.GRAY;
+                case "medium": return new BaseColor(0, 102, 204);
+                case "high": return new BaseColor(255, 140, 0);
+                case "urgent": return BaseColor.RED;
+                default: return BaseColor.BLACK;
+            }
+        }
+
+        // ===== EXPORT TO PDF
+        protected void btnExportPDF_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                DataTable dt = GetFilteredTickets();
+
+                if (dt.Rows.Count == 0)
+                {
+                    ShowError("No data to export.");
+                    return;
+                }
+
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    Document doc = new Document(iTextSharp.text.PageSize.A4.Rotate(), 20, 20, 20, 20);
+                    PdfWriter.GetInstance(doc, ms);
+                    doc.Open();
+
+                    // ===== HEADER TABLE (SEAL | TEXT | FLAG)
+                    PdfPTable headerTable = new PdfPTable(3);
+                    headerTable.WidthPercentage = 100;
+                    headerTable.SetWidths(new float[] { 1f, 3f, 1f });
+
+                    // ===== LEFT IMAGE (BI SEAL)
+                    string sealPath = Server.MapPath("~/Images/bi-seal.png");
+                    if (File.Exists(sealPath))
+                    {
+                        Image seal = Image.GetInstance(sealPath);
+                        seal.ScaleToFit(60f, 60f);
+
+                        PdfPCell sealCell = new PdfPCell(seal);
+                        sealCell.Border = Rectangle.NO_BORDER;
+                        sealCell.HorizontalAlignment = Element.ALIGN_LEFT;
+                        sealCell.VerticalAlignment = Element.ALIGN_MIDDLE;
+                        headerTable.AddCell(sealCell);
+                    }
+                    else
+                    {
+                        headerTable.AddCell(new PdfPCell { Border = Rectangle.NO_BORDER });
+                    }
+
+                    // ===== CENTER TEXT
+                    Font titleFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 14);
+                    Font subFont = FontFactory.GetFont(FontFactory.HELVETICA, 10);
+
+                    Paragraph headerText = new Paragraph();
+                    headerText.Alignment = Element.ALIGN_CENTER;
+                    headerText.Add(new Phrase("REPUBLIC OF THE PHILIPPINES\n", subFont));
+                    headerText.Add(new Phrase("BUREAU OF IMMIGRATION\n", titleFont));
+                    headerText.Add(new Phrase("MANAGEMENT INFORMATION SYSTEMS DIVISION (MISD)\n", subFont));
+                    headerText.Add(new Phrase("Ticketing System Report\n\n", titleFont));
+
+                    headerText.Add(new Phrase("Status: " + (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue) + "\n", subFont));
+                    headerText.Add(new Phrase("Search: " + (string.IsNullOrEmpty(txtSearch.Text) ? "None" : txtSearch.Text) + "\n", subFont));
+                    headerText.Add(new Phrase("From: " + (string.IsNullOrEmpty(txtFromDate.Text) ? "N/A" : txtFromDate.Text) + "\n", subFont));
+                    headerText.Add(new Phrase("To: " + (string.IsNullOrEmpty(txtToDate.Text) ? "N/A" : txtToDate.Text) + "\n", subFont)); 
+                    headerText.Add(new Phrase("Generated: " + DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt"), subFont));
+
+                    PdfPCell textCell = new PdfPCell(headerText);
+                    textCell.Border = Rectangle.NO_BORDER;
+                    textCell.HorizontalAlignment = Element.ALIGN_CENTER;
+                    textCell.VerticalAlignment = Element.ALIGN_MIDDLE;
+                    headerTable.AddCell(textCell);
+
+                    // ===== RIGHT IMAGE (PH FLAG)
+                    string flagPath = Server.MapPath("~/Images/ph-flag.png");
+                    if (File.Exists(flagPath))
+                    {
+                        Image flag = Image.GetInstance(flagPath);
+                        flag.ScaleToFit(60f, 60f);
+
+                        PdfPCell flagCell = new PdfPCell(flag);
+                        flagCell.Border = Rectangle.NO_BORDER;
+                        flagCell.HorizontalAlignment = Element.ALIGN_RIGHT;
+                        flagCell.VerticalAlignment = Element.ALIGN_MIDDLE;
+                        headerTable.AddCell(flagCell);
+                    }
+                    else
+                    {
+                        headerTable.AddCell(new PdfPCell { Border = Rectangle.NO_BORDER });
+                    }
+
+                    doc.Add(headerTable);
+
+                    // ===== LINE SEPARATOR
+                    LineSeparator line = new LineSeparator();
+                    doc.Add(new Chunk(line));
+                    doc.Add(new Paragraph(" "));
+
+                    // ===== TABLE
+                    PdfPTable table = new PdfPTable(7);
+                    table.WidthPercentage = 100;
+
+                    table.SetWidths(new float[]
+                    {
+                8f, 18f, 35f, 15f, 15f, 25f, 25f
+                    });
+
+                    Font headerFont = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 10);
+                    Font cellFont = FontFactory.GetFont(FontFactory.HELVETICA, 9);
+
+                    string[] headers = {
+                "ID",
+                "Ticket No.",
+                "Title",
+                "Status",
+                "Priority",
+                "Date Created",
+                "Assigned To"
+            };
+
+                    foreach (string header in headers)
+                    {
+                        PdfPCell cell = new PdfPCell(new Phrase(header, headerFont));
+                        cell.BackgroundColor = new BaseColor(230, 230, 230);
+                        cell.HorizontalAlignment = Element.ALIGN_CENTER;
+                        cell.Padding = 6;
+                        table.AddCell(cell);
+                    }
+
+                    // ===== DATA
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        table.AddCell(CreateCell(row["TICKET_ID"].ToString(), cellFont));
+                        table.AddCell(CreateCell(row["TICKET_NUMBER"].ToString(), cellFont));
+                        table.AddCell(CreateCell(row["TITLE"].ToString(), cellFont));
+
+                        table.AddCell(CreateCellFormatted(row["STATUS"].ToString(), GetStatusColor(row["STATUS"].ToString())));
+                        table.AddCell(CreateCellFormatted(row["PRIORITY"].ToString(), GetPriorityColor(row["PRIORITY"].ToString())));
+
+                        DateTime date = Convert.ToDateTime(row["CREATED_AT"]);
+                        table.AddCell(CreateCell(date.ToString("MMM dd, yyyy hh:mm tt"), cellFont));
+
+                        table.AddCell(CreateCell(
+                            string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString(),
+                            cellFont
+                        ));
+                    }
+
+                    doc.Add(table);
+                    doc.Close();
+
+                    // ===== RESPONSE (FIXED DOWNLOAD ISSUE)
+                    Response.Clear();
+                    Response.ContentType = "application/pdf";
+                    Response.AddHeader("content-disposition", "attachment;filename=TicketReport.pdf");
+                    Response.Cache.SetCacheability(HttpCacheability.NoCache);
+
+                    Response.BinaryWrite(ms.ToArray());
+                    Response.Flush();
+                    Response.SuppressContent = true;
+                    HttpContext.Current.ApplicationInstance.CompleteRequest();
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("PDF Export Error: " + ex.Message);
+            }
+        }
+        // ===== EXPORT TO EXCEL
         protected void btnExportExcel_Click(object sender, EventArgs e)
         {
-            DataTable dt = GetFilteredTickets(); 
+            DataTable dt = GetFilteredTickets();
 
             Response.Clear();
             Response.Buffer = true;
-            Response.AddHeader("content-disposition", "attachment;filename=Tickets.xls");
+            Response.AddHeader("content-disposition", "attachment;filename=TicketReport.xls");
             Response.Charset = "";
             Response.ContentType = "application/vnd.ms-excel";
 
@@ -736,17 +780,74 @@ namespace BI_TICKETING_SYSTEM.Pages
             {
                 HtmlTextWriter hw = new HtmlTextWriter(sw);
 
-                // =========== HEADER
-                hw.Write("<h2>TICKET REPORT</h2>");
-                hw.Write("<p><b>Status:</b> " + (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue) + "</p>");
-                hw.Write("<p><b>Search:</b> " + (string.IsNullOrEmpty(txtSearch.Text) ? "None" : txtSearch.Text) + "</p>");
-                hw.Write("<p>Generated: " + DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt") + "</p><br/>");
+                // ===== FIX IMAGE PATH 
+                string baseUrl = Request.Url.GetLeftPart(UriPartial.Authority);
+                string sealUrl = baseUrl + ResolveUrl("~/Images/bi-seal.png");
+                string flagUrl = baseUrl + ResolveUrl("~/Images/ph-flag.png");
 
+                // ===== HEADER TABLE (SEAL | TITLE | FLAG)
+                hw.Write(@"
+                    <table style='width:100%; margin-bottom:20px; font-family:Arial;'>
+                        <tr>
+                            <td style='width:20%; text-align:left;'>
+                                <img src='" + sealUrl + @"' height='60'/>
+                            </td>
+
+                            <td style='width:60%; text-align:center;'>
+                                <div style='font-size:14px; font-weight:bold;'>REPUBLIC OF THE PHILIPPINES</div>
+                                <div style='font-size:16px; font-weight:bold;'>BUREAU OF IMMIGRATION</div>
+                                <div style='font-size:12px;'>MANAGEMENT INFORMATION SYSTEMS DIVISION (MISD)</div>
+                                <div style='font-size:14px; font-weight:bold; margin-top:5px;'>Ticketing System Report</div>
+                            </td>
+
+                            <td style='width:20%; text-align:right;'>
+                                <img src='" + flagUrl + @"' height='60'/>
+                            </td>
+                        </tr>
+                    </table>
+                    ");
+
+                // ===== FILTER DETAILS
+                hw.Write("<table style='margin-bottom:15px; font-family:Arial;'>");
+                hw.Write("<tr><td><b>Status:</b></td><td>" +
+                    (string.IsNullOrEmpty(ddlFilterStatus.SelectedValue) ? "All" : ddlFilterStatus.SelectedValue) +
+                    "</td></tr>");
+
+                hw.Write("<tr><td><b>Search:</b></td><td>" +
+                    (string.IsNullOrEmpty(txtSearch.Text) ? "None" : txtSearch.Text) +
+                    "</td></tr>");
+
+                hw.Write("<tr><td><b>From Date:</b></td><td>" +
+                    (string.IsNullOrEmpty(txtFromDate.Text) ? "N/A" : txtFromDate.Text) +
+                    "</td></tr>");
+
+                hw.Write("<tr><td><b>To Date:</b></td><td>" +
+                    (string.IsNullOrEmpty(txtToDate.Text) ? "N/A" : txtToDate.Text) +
+                    "</td></tr>");
+
+                hw.Write("<tr><td><b>Generated:</b></td><td>" +
+                    DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt") +
+                    "</td></tr>");
+                hw.Write("</table>");
+
+                hw.Write("<hr/>");
+
+                // ===== TABLE (GRIDVIEW)
                 GridView gv = new GridView();
                 gv.DataSource = dt;
                 gv.DataBind();
+
+                // ===== STYLE TABLE
+                gv.HeaderStyle.BackColor = System.Drawing.Color.LightGray;
+                gv.HeaderStyle.Font.Bold = true;
+                gv.RowStyle.BackColor = System.Drawing.Color.White;
+                gv.AlternatingRowStyle.BackColor = System.Drawing.ColorTranslator.FromHtml("#f2f2f2");
+
+                gv.Attributes["style"] = "border-collapse:collapse; width:100%; font-family:Arial;";
+
                 gv.RenderControl(hw);
 
+                // ===== OUTPUT
                 Response.Output.Write(sw.ToString());
                 Response.Flush();
                 Response.End();
@@ -771,12 +872,11 @@ namespace BI_TICKETING_SYSTEM.Pages
         {
             switch (status?.ToLower())
             {
-                case "pending approval": return "badge-pending-approval";
-                case "open": return "badge-open";
+                case "new": return "badge-new";
+                case "assigned": return "badge-assigned";
                 case "in progress": return "badge-in-progress";
                 case "resolved": return "badge-resolved";
                 case "closed": return "badge-closed";
-                case "overdue": return "badge-overdue";
                 default: return "badge-secondary";
             }
         }
@@ -802,7 +902,7 @@ namespace BI_TICKETING_SYSTEM.Pages
             pnlError.Visible = false;
         }
 
-        private void ShowError(string msg)
+        private void ShowError(string msg) 
         {
             hfSwalMessage.Value = msg;
             hfSwalType.Value = "error";

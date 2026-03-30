@@ -97,26 +97,26 @@
                     <div class="stat-number">
                         <asp:Label ID="lblPending" runat="server" Text="0" />
                     </div>
-                    <div class="stat-label">Pending Approval</div>
+                    <div class="stat-label">New</div>
                 </div>
                 <div class="stat-footer">
                     <i class="fas fa-arrow-circle-right mr-1"></i>
-                    <a href="~/Pages/Tickets.aspx" runat="server">View Pending</a>
+                    <a href="~/Pages/Tickets.aspx" runat="server">View New</a>
                 </div>
             </div>
         </div>
         <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
             <div class="stat-card stat-crimson">
                 <div class="card-body">
-                    <i class="fas fa-exclamation-triangle stat-icon"></i>
+                    <i class="fas fa-user-check stat-icon"></i>
                     <div class="stat-number">
                         <asp:Label ID="lblOverdue" runat="server" Text="0" />
                     </div>
-                    <div class="stat-label">Overdue</div>
+                    <div class="stat-label">Assigned</div>
                 </div>
                 <div class="stat-footer">
                     <i class="fas fa-arrow-circle-right mr-1"></i>
-                    <a href="~/Pages/Tickets.aspx" runat="server">View Overdue</a>
+                    <a href="~/Pages/Tickets.aspx" runat="server">View Assigned</a>
                 </div>
             </div>
         </div>
@@ -155,7 +155,7 @@
                                 <div style="font-size:22px;font-weight:700;color:#001f54;">
                                     <asp:Label ID="lblOpenCount" runat="server" Text="0" />
                                 </div>
-                                <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;">Open</div>
+                                <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;">New</div>
                             </div>
                         </div>
                         <div class="col-4">

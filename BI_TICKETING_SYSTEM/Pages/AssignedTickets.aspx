@@ -9,12 +9,11 @@
     .filter-select { border-radius: 8px !important; font-size: 13px; }
     .btn-create { background: linear-gradient(135deg, #001f54, #003087); color: white; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; }
     .btn-create:hover { background: linear-gradient(135deg, #003087, #0041a8); color: white; }
-    .badge-pending-approval { background: #6c757d; color: white; }
-    .badge-open { background: #ffc107; color: #333; }
+    .badge-new { background: #fd7e14; color: white; }
+    .badge-assigned { background: #ffc107; color: #333; }
     .badge-in-progress { background: #007bff; color: white; }
     .badge-resolved { background: #28a745; color: white; }
-    .badge-closed { background: #343a40; color: white; }
-    .badge-overdue { background: #dc3545; color: white; }
+    .badge-closed { background: #000000; color: white; }
     .badge-low { background: #007bff; color: white; }
     .badge-medium { background: #ffc107; color: #333; }
     .badge-high { background: #fd7e14; color: white; }
@@ -26,12 +25,6 @@
     .btn-action { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: none; }
     .btn-view { background: #17a2b8; color: white; }
     .btn-view:hover { background: #138496; color: white; }
-    .btn-edit { background: #ffc107; color: #333; }
-    .btn-edit:hover { background: #e0a800; color: #333; }
-    .btn-delete { background: #dc3545; color: white; }
-    .btn-delete:hover { background: #c82333; color: white; }
-    .btn-approve { background: #28a745; color: white; }
-    .btn-approve:hover { background: #218838; color: white; }
     .modal-header { background: linear-gradient(135deg, #001f54, #003087); color: white; border-radius: 10px 10px 0 0; }
     .modal-header .close { color: white; opacity: 1; }
     .modal-content { border-radius: 10px; border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
@@ -46,6 +39,8 @@
     .alert-danger-custom { background: #f8d7da; border: 1px solid #f5c6cb; border-left: 4px solid #dc3545; border-radius: 8px; color: #721c24; padding: 10px 15px; font-size: 13px; }
     .remark-item { background:#fff; border-radius:6px; padding:10px; margin-bottom:8px; border:1px solid #eee; }
     .remark-meta { font-size:11px; color:#666; }
+    .dropdown-priority { font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid #ddd; }
+    .dropdown-priority:focus { border-color: #001f54; box-shadow: 0 0 0 2px rgba(0,31,84,0.1); }
 </style>
 </asp:Content>
 
@@ -80,15 +75,18 @@
                     </div>
                 </div>
                 <div class="col-md-3">
+                    <!-- STATUS FILTER -->
                     <asp:DropDownList ID="ddlFilterStatus" runat="server" CssClass="form-control filter-select" AutoPostBack="true" OnSelectedIndexChanged="ddlFilter_Changed">
                         <asp:ListItem Value="">-- All Status --</asp:ListItem>
-                        <asp:ListItem Value="Pending Approval">Pending Approval</asp:ListItem>
-                        <asp:ListItem Value="Open">Open</asp:ListItem>
+                        <asp:ListItem Value="New">New</asp:ListItem>
+                        <asp:ListItem Value="Assigned">Assigned</asp:ListItem>
                         <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
                         <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
                         <asp:ListItem Value="Closed">Closed</asp:ListItem>
-                        <asp:ListItem Value="Overdue">Overdue</asp:ListItem>
                     </asp:DropDownList>
+                    <!-- DATE FILTER -->
+                    <asp:TextBox ID="txtFromDate" runat="server" TextMode="Date" CssClass="form-control" />
+                    <asp:TextBox ID="txtToDate" runat="server" TextMode="Date" CssClass="form-control" />
                 </div>
                 <div class="col-md-3">
                     <asp:Button ID="btnExportPDF" runat="server" Text="Export to PDF"
@@ -100,7 +98,7 @@
 
             <!-- Tickets Table -->
             <div class="table-responsive">
-                <asp:Repeater ID="rptTickets" runat="server" OnItemCommand="rptTickets_ItemCommand">
+                <asp:Repeater ID="rptTickets" runat="server" OnItemDataBound="rptTickets_ItemDataBound" OnItemCommand="rptTickets_ItemCommand">
                     <HeaderTemplate>
                         <table class="table table-bordered table-hover">
                             <thead>
@@ -112,7 +110,7 @@
                                     <th>Created By</th>
                                     <th>Assigned To</th>
                                     <th>Date</th>
-                                    <th style="width:160px;">Actions</th>
+                                    <th style="width:120px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -127,50 +125,33 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="badge <%# GetPriorityBadge(Eval("PRIORITY").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
-                                    <%# string.IsNullOrEmpty(Eval("PRIORITY").ToString()) ? "Not Set" : Eval("PRIORITY").ToString() %>
-                                </span>
+                                <asp:DropDownList ID="ddlRowPriority" runat="server" CssClass="dropdown-priority" AutoPostBack="true"
+                                    Visible='<%# Session["UserRole"] != null && Session["UserRole"].ToString().ToLower() == "support" %>'
+                                    OnSelectedIndexChanged="ddlRowPriority_Changed">
+                                    <asp:ListItem Value="">NOT SET</asp:ListItem>
+                                    <asp:ListItem Value="LOW">Low</asp:ListItem>
+                                    <asp:ListItem Value="MEDIUM">Medium</asp:ListItem>
+                                    <asp:ListItem Value="HIGH">High</asp:ListItem>
+                                    <asp:ListItem Value="URGENT">Urgent</asp:ListItem>
+                                </asp:DropDownList>
+                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || Session["UserRole"].ToString().ToLower() != "support" %>'>
+                                    <span class="badge <%# GetPriorityBadge(Eval("PRIORITY").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
+                                        <%# string.IsNullOrEmpty(Eval("PRIORITY").ToString()) ? "Not Set" : Eval("PRIORITY").ToString() %>
+                                    </span>
+                                </asp:PlaceHolder>
+                                <asp:HiddenField ID="hfRowTicketId" runat="server" Value='<%# Eval("TICKET_ID") %>' />
                             </td>
                             <td><%# Eval("CREATED_BY_NAME") %></td>
                             <td><%# string.IsNullOrEmpty(Eval("ASSIGNED_TO_NAME").ToString()) ? "<span style='color:#aaa;'>Unassigned</span>" : Eval("ASSIGNED_TO_NAME").ToString() %></td>
                             <td><%# Convert.ToDateTime(Eval("CREATED_AT")).ToString("MM/dd/yyyy") %></td>
                             <td>
-                            <%-- View - everyone --%>
-                            <asp:LinkButton runat="server" CommandName="ViewTicket"
-                                CommandArgument='<%# Eval("TICKET_ID") %>'
-                                CssClass="btn btn-action btn-view mr-1"
-                                ToolTip="View">
-                                <i class="fas fa-eye"></i>
-                            </asp:LinkButton>
-
-                            <%-- Approve - admin only, pending approval only --%>
-                            <asp:LinkButton runat="server" CommandName="ApproveTicket"
-                                CommandArgument='<%# Eval("TICKET_ID") %>'
-                                CssClass="btn btn-action btn-approve mr-1"
-                                Visible='<%# Eval("STATUS").ToString() == "Pending Approval" && Session["UserRole"].ToString().ToLower() == "admin" %>'
-                                ToolTip="Approve">
-                                <i class="fas fa-check"></i>
-                            </asp:LinkButton>
-
-                            <%-- Edit - admin, support, and user (own tickets) --%>
-                            <asp:LinkButton runat="server" CommandName="EditTicket"
-                                CommandArgument='<%# Eval("TICKET_ID") %>'
-                                CssClass="btn btn-action btn-edit mr-1"
-                                Visible='<%# Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "support" || Session["UserRole"].ToString().ToLower() == "user" %>'
-                                ToolTip="Edit">
-                                <i class="fas fa-edit"></i>
-                            </asp:LinkButton>
-
-                            <%-- Delete - admin and user (own tickets) --%>
-                            <asp:LinkButton runat="server" CommandName="DeleteTicket"
-                                CommandArgument='<%# Eval("TICKET_ID") %>'
-                                CssClass="btn btn-action btn-delete"
-                                Visible='<%# Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user" %>'
-                                ToolTip="Delete"
-                                OnClientClick="return confirmDelete(this);">
-                                <i class="fas fa-trash"></i>
-                            </asp:LinkButton>
-                        </td>
+                                <asp:LinkButton runat="server" CommandName="ViewTicket"
+                                    CommandArgument='<%# Eval("TICKET_ID") %>'
+                                    CssClass="btn btn-action btn-view mr-1"
+                                    ToolTip="View">
+                                    <i class="fas fa-eye"></i>
+                                </asp:LinkButton>
+                            </td>
                         </tr>
                     </ItemTemplate>
                     <FooterTemplate>
@@ -304,125 +285,13 @@
                         </div>
                     </asp:Panel>
 
+                    <asp:Panel ID="pnlClosedRemarkNotice" runat="server" Visible="false" CssClass="alert alert-secondary mt-3">
+                        Remarks are disabled for closed tickets.
+                    </asp:Panel>
+
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ===== EDIT TICKET MODAL ===== -->
-    <div class="modal fade" id="modalEditTicket" tabindex="-1" role="dialog" data-backdrop="static">
-        <div class="modal-dialog modal-lg" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Ticket</h5>
-                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-                </div>
-                <div class="modal-body">
-                    <asp:HiddenField ID="hfEditTicketId" runat="server" />
-
-                    <%-- Ticket Number and Status - always visible --%>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Ticket Number</label>
-                            <asp:TextBox ID="txtEditTicketNumber" runat="server" CssClass="form-control" ReadOnly="true" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Status <span class="required-star">*</span></label>
-                            <asp:DropDownList ID="ddlEditStatus" runat="server" CssClass="form-control">
-                                <asp:ListItem Value="Pending Approval">Pending Approval</asp:ListItem>
-                                <asp:ListItem Value="Open">Open</asp:ListItem>
-                                <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
-                                <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
-                                <asp:ListItem Value="Closed">Closed</asp:ListItem>
-                            </asp:DropDownList>
-                        </div>
-                    </div>
-
-                    <%-- Title - admin only --%>
-                    <asp:Panel ID="pnlEditTitle" runat="server">
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label class="form-label">Title <span class="required-star">*</span></label>
-                                <asp:TextBox ID="txtEditTitle" runat="server" CssClass="form-control" MaxLength="200" />
-                                <asp:RequiredFieldValidator ID="rfvEditTitle" runat="server" ControlToValidate="txtEditTitle"
-                                    ErrorMessage="Title is required." ForeColor="Red" Display="Dynamic"
-                                    ValidationGroup="EditTicket" Font-Size="11px" />
-                            </div>
-                        </div>
-                    </asp:Panel>
-
-                    <%-- Description - admin only --%>
-                    <asp:Panel ID="pnlEditDescription" runat="server">
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label class="form-label">Description <span class="required-star">*</span></label>
-                                <asp:TextBox ID="txtEditDescription" runat="server" CssClass="form-control" TextMode="MultiLine" Rows="5" />
-                                <asp:RequiredFieldValidator ID="rfvEditDescription" runat="server" ControlToValidate="txtEditDescription"
-                                    ErrorMessage="Description is required." ForeColor="Red" Display="Dynamic"
-                                    ValidationGroup="EditTicket" Font-Size="11px" />
-                            </div>
-                        </div>
-                    </asp:Panel>
-
-                    <%-- Priority and Category - admin only --%>
-                    <asp:Panel ID="pnlEditPriorityCategory" runat="server">
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Priority</label>
-                                <asp:DropDownList ID="ddlEditPriority" runat="server" CssClass="form-control">
-                                    <asp:ListItem Value="">-- Not Set --</asp:ListItem>
-                                    <asp:ListItem Value="Low">Low</asp:ListItem>
-                                    <asp:ListItem Value="Medium">Medium</asp:ListItem>
-                                    <asp:ListItem Value="High">High</asp:ListItem>
-                                    <asp:ListItem Value="Critical">Critical</asp:ListItem>
-                                </asp:DropDownList>
-                            </div>
-                      </div>
-                    </asp:Panel>
-
-                    <%-- Assign To - admin only --%>
-                    <asp:Panel ID="pnlAssignTo" runat="server">
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label class="form-label">Assign To <span style="color:#888; font-size:11px;">(Support Staff)</span></label>
-                                <asp:DropDownList ID="ddlAssignTo" runat="server" CssClass="form-control">
-                                    <asp:ListItem Value="">-- Unassigned --</asp:ListItem>
-                                </asp:DropDownList>
-                            </div>
-                        </div>
-                    </asp:Panel>
-
-                    <%-- Title, Description, Category - user only --%>
-                    <asp:Panel ID="pnlUserEdit" runat="server">
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label class="form-label">Title <span class="required-star">*</span></label>
-                                <asp:TextBox ID="txtUserEditTitle" runat="server" CssClass="form-control" MaxLength="200" />
-                                <asp:RequiredFieldValidator ID="rfvUserEditTitle" runat="server" 
-                                    ControlToValidate="txtUserEditTitle"
-                                    ErrorMessage="Title is required." ForeColor="Red" Display="Dynamic"
-                                    ValidationGroup="EditTicket" Font-Size="11px" />
-                            </div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <label class="form-label">Description <span class="required-star">*</span></label>
-                                <asp:TextBox ID="txtUserEditDescription" runat="server" CssClass="form-control" TextMode="MultiLine" Rows="5" />
-                                <asp:RequiredFieldValidator ID="rfvUserEditDescription" runat="server" 
-                                    ControlToValidate="txtUserEditDescription"
-                                    ErrorMessage="Description is required." ForeColor="Red" Display="Dynamic"
-                                    ValidationGroup="EditTicket" Font-Size="11px" />
-                            </div>
-                        </div>
-                    </asp:Panel>
-
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <asp:Button ID="btnSaveEdit" runat="server" Text="Save Changes" CssClass="btn btn-create" OnClick="btnSaveEdit_Click" ValidationGroup="EditTicket" />
                 </div>
             </div>
         </div>
@@ -458,30 +327,8 @@
         var modal = $('#<%= hfShowModal.ClientID %>').val();
         if (modal === 'view') {
             $('#modalViewTicket').modal('show');
-        } else if (modal === 'edit') {
-            $('#modalEditTicket').modal('show');
         }
 
     });
-
-    // ===== SWEETALERT2 DELETE CONFIRMATION =====
-    function confirmDelete(btn) {
-        Swal.fire({
-            title: 'Are you sure?',
-            text: 'This ticket will be permanently deleted!',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#dc3545',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Yes, delete it!',
-            cancelButtonText: 'Cancel'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                btn.removeAttribute('onclick');
-                btn.click();
-            }
-        });
-        return false;
-    }
-</script>
+    </script>
 </asp:Content>

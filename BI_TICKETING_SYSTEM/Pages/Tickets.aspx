@@ -9,12 +9,11 @@
     .filter-select { border-radius: 8px !important; font-size: 13px; }
     .btn-create { background: linear-gradient(135deg, #001f54, #003087); color: white; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; }
     .btn-create:hover { background: linear-gradient(135deg, #003087, #0041a8); color: white; }
-    .badge-pending-approval { background: #6c757d; color: white; }
-    .badge-open { background: #ffc107; color: #333; }
+    .badge-new { background: #fd7e14; color: white; }
+    .badge-assigned { background: #ffc107; color: #333; }
     .badge-in-progress { background: #007bff; color: white; }
     .badge-resolved { background: #28a745; color: white; }
     .badge-closed { background: #000000; color: white; }
-    .badge-overdue { background: #dc3545; color: white; }
     .badge-low { background: #007bff; color: white; }
     .badge-medium { background: #ffc107; color: #333; }
     .badge-high { background: #fd7e14; color: white; }
@@ -26,6 +25,8 @@
     .btn-action { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: none; }
     .btn-view { background: #17a2b8; color: white; }
     .btn-view:hover { background: #138496; color: white; }
+    .btn-edit { background: #ffc107; color: #333; }
+    .btn-edit:hover { background: #e0a800; color: #333; }
     .btn-delete { background: #dc3545; color: white; }
     .btn-delete:hover { background: #c82333; color: white; }
     .dropdown-status, .dropdown-assign, .dropdown-priority { font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid #ddd; }
@@ -87,12 +88,11 @@
                 <div class="col-md-3">
                     <asp:DropDownList ID="ddlFilterStatus" runat="server" CssClass="form-control filter-select" AutoPostBack="true" OnSelectedIndexChanged="ddlFilter_Changed">
                         <asp:ListItem Value="">-- All Status --</asp:ListItem>
-                        <asp:ListItem Value="Pending Approval">Pending Approval</asp:ListItem>
-                        <asp:ListItem Value="Open">Open</asp:ListItem>
+                        <asp:ListItem Value="New">New</asp:ListItem>
+                        <asp:ListItem Value="Assigned">Assigned</asp:ListItem>
                         <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
                         <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
                         <asp:ListItem Value="Closed">Closed</asp:ListItem>
-                        <asp:ListItem Value="Overdue">Overdue</asp:ListItem>
                     </asp:DropDownList>
                 </div>
                 <div class="col-md-3">
@@ -123,6 +123,7 @@
                                     <th>Due Date</th>
                                     <th>Aging</th>
                                     <th style="width:120px;">Actions</th>
+                                    <th style="width:160px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -133,8 +134,8 @@
                             <td><%# Eval("TITLE") %></td>
                             <td><%# Eval("CREATED_BY_NAME") %></td>
                             <td>
-                                <asp:DropDownList ID="ddlRowPriority" runat="server" CssClass="dropdown-priority" AutoPostBack="true"
-                                    Visible='<%# Session["UserRole"] != null && Session["UserRole"].ToString().ToLower() == "admin" %>'
+                                <asp:DropDownList ID="ddlRowPriority" runat="server" CssClass="dropdown-priority"
+                                    Visible='<%# Session["UserRole"] != null && (Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user") %>'
                                     OnSelectedIndexChanged="ddlRowPriority_Changed">
                                     <asp:ListItem Value="">NOT SET</asp:ListItem>
                                     <asp:ListItem Value="LOW">Low</asp:ListItem>
@@ -142,24 +143,27 @@
                                     <asp:ListItem Value="HIGH">High</asp:ListItem>
                                     <asp:ListItem Value="URGENT">Urgent</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || Session["UserRole"].ToString().ToLower() != "admin" %>'>
+                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || (Session["UserRole"].ToString().ToLower() != "admin" && Session["UserRole"].ToString().ToLower() != "user") %>'>
                                     <span class="badge <%# GetPriorityBadge(Eval("PRIORITY").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
                                         <%# string.IsNullOrEmpty(Eval("PRIORITY").ToString()) ? "Not Set" : Eval("PRIORITY").ToString() %>
                                     </span>
                                 </asp:PlaceHolder>
                             </td>
                             <td>
-                                <asp:DropDownList ID="ddlRowStatus" runat="server" CssClass="dropdown-status" AutoPostBack="true"
-                                    Visible='<%# Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "support" %>'
+                                <asp:DropDownList ID="ddlRowStatus" runat="server" CssClass="dropdown-status"
+                                    Visible='<%# Session["UserRole"] != null &&
+                                        (Session["UserRole"].ToString().ToLower() == "admin" || 
+                                        Session["UserRole"].ToString().ToLower() == "user") %>'
                                     OnSelectedIndexChanged="ddlRowStatus_Changed">
-                                    <asp:ListItem Value="Pending Approval">Pending Approval</asp:ListItem>
-                                    <asp:ListItem Value="Open">Open</asp:ListItem>
+                                    <asp:ListItem Value="New">New</asp:ListItem>
+                                    <asp:ListItem Value="Assigned">Assigned</asp:ListItem>
                                     <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
                                     <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
                                     <asp:ListItem Value="Closed">Closed</asp:ListItem>
-                                    <asp:ListItem Value="Overdue">Overdue</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || (Session["UserRole"].ToString().ToLower() != "admin" && Session["UserRole"].ToString().ToLower() != "support") %>'>
+                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || 
+                                            (Session["UserRole"].ToString().ToLower() != "admin" && 
+                                            Session["UserRole"].ToString().ToLower() != "user") %>'>
                                     <span class="badge <%# GetStatusBadge(Eval("STATUS").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
                                         <%# Eval("STATUS") %>
                                     </span>
@@ -167,11 +171,11 @@
                                 <asp:HiddenField ID="hfRowTicketId" runat="server" Value='<%# Eval("TICKET_ID") %>' />
                             </td>
                             <td>
-                                <asp:DropDownList ID="ddlRowAssign" runat="server" CssClass="dropdown-assign" AutoPostBack="true"
-                                    Visible='<%# Session["UserRole"].ToString().ToLower() == "admin" %>'
+                                <asp:DropDownList ID="ddlRowAssign" runat="server" CssClass="dropdown-assign"
+                                    Visible='<%# Session["UserRole"] != null && (Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user") %>'
                                     OnSelectedIndexChanged="ddlRowAssign_Changed">
                                 </asp:DropDownList>
-                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || Session["UserRole"].ToString().ToLower() != "admin" %>'>
+                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || (Session["UserRole"].ToString().ToLower() != "admin" && Session["UserRole"].ToString().ToLower() != "user") %>'>
                                     <%# string.IsNullOrEmpty(Eval("ASSIGNED_TO_NAME").ToString()) ? "<span style='color:#aaa;'>Unassigned</span>" : Eval("ASSIGNED_TO_NAME").ToString() %>
                                 </asp:PlaceHolder>
                             </td>
@@ -192,6 +196,14 @@
                                     CssClass="btn btn-action btn-view mr-1"
                                     ToolTip="View">
                                     <i class="fas fa-eye"></i>
+                                </asp:LinkButton>
+
+                                <asp:LinkButton runat="server" CommandName="EditTicket"
+                                    CommandArgument='<%# Eval("TICKET_ID") %>'
+                                    CssClass="btn btn-action btn-edit mr-1"
+                                    Visible='<%# Session["UserRole"] != null && (Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user") %>'
+                                    ToolTip="Edit">
+                                    <i class="fas fa-edit"></i>
                                 </asp:LinkButton>
 
                                 <asp:LinkButton runat="server" CommandName="DeleteTicket"
@@ -221,8 +233,8 @@
             <div class="d-flex justify-content-between align-items-center mt-3">
                 <asp:Label ID="lblPaginationInfo" runat="server" CssClass="pagination-info" />
                 <div>
-                    <asp:Button ID="btnPrev" runat="server" Text="← Prev" CssClass="btn btn-sm btn-outline-secondary mr-1" OnClick="btnPrev_Click" />
-                    <asp:Button ID="btnNext" runat="server" Text="Next →" CssClass="btn btn-sm btn-outline-secondary" OnClick="btnNext_Click" />
+                    <asp:Button ID="btnPrev" runat="server" Text="Prev" CssClass="btn btn-sm btn-outline-secondary mr-1" OnClick="btnPrev_Click" />
+                    <asp:Button ID="btnNext" runat="server" Text="Next" CssClass="btn btn-sm btn-outline-secondary" OnClick="btnNext_Click" />
                 </div>
             </div>
         </div>
@@ -270,10 +282,26 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Priority <span class="required-star">*</span></label>
+                            <asp:DropDownList ID="ddlCreatePriority" runat="server" CssClass="form-control filter-select">
+                                <asp:ListItem Value="">-- Select Priority --</asp:ListItem>
+                                <asp:ListItem Value="Low">Low</asp:ListItem>
+                                <asp:ListItem Value="Medium">Medium</asp:ListItem>
+                                <asp:ListItem Value="High">High</asp:ListItem>
+                                <asp:ListItem Value="Urgent">Urgent</asp:ListItem>
+                            </asp:DropDownList>
+                            <asp:RequiredFieldValidator ID="rfvCreatePriority" runat="server" ControlToValidate="ddlCreatePriority"
+                                InitialValue="" ErrorMessage="Priority is required." ForeColor="Red" Display="Dynamic"
+                                ValidationGroup="CreateTicket" Font-Size="11px" />
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label">Created By</label>
                             <asp:TextBox ID="txtCreatedBy" runat="server" CssClass="form-control" ReadOnly="true" />
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4">
                             <label class="form-label">Created Date</label>
                             <asp:TextBox ID="txtCreatedDate" runat="server" CssClass="form-control" ReadOnly="true" />
                         </div>
@@ -372,7 +400,7 @@
                                 <div class="remark-item">
                                     <div class="remark-header">
                                         <span class="remark-author"><%# Eval("FULL_NAME") %></span>
-                                        <span class="text-muted ml-2">•</span>
+                                        <span class="text-muted ml-2"> - </span>
                                         <span class="text-muted ml-2"><%# Convert.ToDateTime(Eval("CREATED_AT")).ToString("MMM dd, yyyy hh:mm tt") %></span>
                                     </div>
                                     <div class="remark-text">
@@ -388,6 +416,48 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalEditTicket" tabindex="-1" role="dialog" data-backdrop="static">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Ticket</h5>
+                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <asp:HiddenField ID="hfEditTicketId" runat="server" />
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label class="form-label">Ticket Number</label>
+                            <asp:TextBox ID="txtEditTicketNumber" runat="server" CssClass="form-control" ReadOnly="true" />
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label class="form-label">Title <span class="required-star">*</span></label>
+                            <asp:TextBox ID="txtEditTitle" runat="server" CssClass="form-control" MaxLength="200" />
+                            <asp:RequiredFieldValidator ID="rfvEditTitle" runat="server" ControlToValidate="txtEditTitle"
+                                ErrorMessage="Title is required." ForeColor="Red" Display="Dynamic"
+                                ValidationGroup="EditTicket" Font-Size="11px" />
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label class="form-label">Description <span class="required-star">*</span></label>
+                            <asp:TextBox ID="txtEditDescription" runat="server" CssClass="form-control" TextMode="MultiLine" Rows="5" />
+                            <asp:RequiredFieldValidator ID="rfvEditDescription" runat="server" ControlToValidate="txtEditDescription"
+                                ErrorMessage="Description is required." ForeColor="Red" Display="Dynamic"
+                                ValidationGroup="EditTicket" Font-Size="11px" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <asp:Button ID="btnSaveEdit" runat="server" Text="Save Changes" CssClass="btn btn-create" OnClick="btnSaveEdit_Click" ValidationGroup="EditTicket" />
                 </div>
             </div>
         </div>
@@ -420,6 +490,10 @@
         var modal = $('#<%= hfShowModal.ClientID %>').val();
         if (modal === 'view') {
             $('#modalViewTicket').modal('show');
+        } else if (modal === 'edit') {
+            $('#modalEditTicket').modal('show');
+        } else if (modal === 'create') {
+            $('#modalCreateTicket').modal('show');
         }
 
     });
@@ -440,6 +514,134 @@
                 btn.click();
             }
         });
+        return false;
+    }
+
+    function confirmStatusChange(ddl) {
+        var oldValue = ddl.getAttribute('data-oldvalue');
+        var newValue = ddl.value;
+
+        if (oldValue === newValue) return false;
+
+        if (newValue === 'Assigned') {
+            ddl.value = oldValue;
+            Swal.fire({
+                icon: 'error',
+                title: 'Not Allowed',
+                text: '"Assigned" status is set automatically when a support staff is selected.',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2500
+            });
+            return false;
+        }
+
+        if (newValue !== 'New') {
+            var row = ddl.closest('tr');
+            var assignDdl = row.querySelector('select[id*="ddlRowAssign"]');
+            if (assignDdl && !assignDdl.value) {
+                ddl.value = oldValue;
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Assignment Required',
+                    text: 'Please assign a support staff before changing the status.',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 2500
+                });
+                return false;
+            }
+        }
+
+        ddl.value = oldValue;
+
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'Do you want to change the ticket status to "' + newValue + '"?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#001f54',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, update it',
+            cancelButtonText: 'Cancel'
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                ddl.value = newValue;
+                ddl.setAttribute('data-oldvalue', newValue);
+                __doPostBack(ddl.name, '');
+            }
+        });
+
+        return false;
+    }
+
+    function confirmPriorityChange(ddl) {
+        var oldValue = ddl.getAttribute('data-oldvalue');
+        var newValue = ddl.value;
+
+        if (oldValue === newValue) return false;
+
+        var label = '';
+        for (var i = 0; i < ddl.options.length; i++) {
+            if (ddl.options[i].value === newValue) { label = ddl.options[i].text; break; }
+        }
+
+        ddl.value = oldValue;
+
+        Swal.fire({
+            title: 'Are you sure?',
+            text: 'Do you want to change the ticket priority to "' + label + '"?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#001f54',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, update it',
+            cancelButtonText: 'Cancel'
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                ddl.value = newValue;
+                ddl.setAttribute('data-oldvalue', newValue);
+                __doPostBack(ddl.name, '');
+            }
+        });
+
+        return false;
+    }
+
+    function confirmAssignChange(ddl) {
+        var oldValue = ddl.getAttribute('data-oldvalue');
+        var newValue = ddl.value;
+
+        if (oldValue === newValue) return false;
+
+        var label = '';
+        for (var i = 0; i < ddl.options.length; i++) {
+            if (ddl.options[i].value === newValue) { label = ddl.options[i].text; break; }
+        }
+
+        var msg = newValue ? 'Do you want to assign this ticket to "' + label + '"?' : 'Do you want to unassign this ticket?';
+
+        ddl.value = oldValue;
+
+        Swal.fire({
+            title: 'Are you sure?',
+            text: msg,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#001f54',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, update it',
+            cancelButtonText: 'Cancel'
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                ddl.value = newValue;
+                ddl.setAttribute('data-oldvalue', newValue);
+                __doPostBack(ddl.name, '');
+            }
+        });
+
         return false;
     }
 </script>

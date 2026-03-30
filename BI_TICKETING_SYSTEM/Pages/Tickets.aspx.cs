@@ -92,6 +92,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                     sql += " ORDER BY T.CREATED_AT DESC ";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.BindByName = true;
 
                     if (role == "user")
                         cmd.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
@@ -156,6 +157,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                     string currentStatus = row["STATUS"].ToString();
                     if (ddlRowStatus.Items.FindByValue(currentStatus) != null)
                         ddlRowStatus.SelectedValue = currentStatus;
+
+                    ddlRowStatus.Attributes["data-oldvalue"] = currentStatus;
+                    ddlRowStatus.Attributes["onchange"] = "return confirmStatusChange(this);";
                 }
 
                 DropDownList ddlRowPriority = (DropDownList)e.Item.FindControl("ddlRowPriority");
@@ -166,18 +170,25 @@ namespace BI_TICKETING_SYSTEM.Pages
                         ddlRowPriority.SelectedValue = currentPriority;
                     else
                         ddlRowPriority.SelectedValue = "";
+
+                    ddlRowPriority.Attributes["data-oldvalue"] = currentPriority;
+                    ddlRowPriority.Attributes["onchange"] = "return confirmPriorityChange(this);";
                 }
 
                 DropDownList ddlRowAssign = (DropDownList)e.Item.FindControl("ddlRowAssign");
                 if (ddlRowAssign != null && ddlRowAssign.Visible)
                 {
                     LoadSupportUsersIntoDropDown(ddlRowAssign);
+                    string assignedValue = "";
                     if (row["ASSIGNED_TO_USER_ID"] != DBNull.Value)
                     {
-                        string assignedId = row["ASSIGNED_TO_USER_ID"].ToString();
-                        if (ddlRowAssign.Items.FindByValue(assignedId) != null)
-                            ddlRowAssign.SelectedValue = assignedId;
+                        assignedValue = row["ASSIGNED_TO_USER_ID"].ToString();
+                        if (ddlRowAssign.Items.FindByValue(assignedValue) != null)
+                            ddlRowAssign.SelectedValue = assignedValue;
                     }
+
+                    ddlRowAssign.Attributes["data-oldvalue"] = assignedValue;
+                    ddlRowAssign.Attributes["onchange"] = "return confirmAssignChange(this);";
                 }
             }
         }
@@ -196,6 +207,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                                    ORDER BY FULL_NAME";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.BindByName = true;
                     OracleDataAdapter da = new OracleDataAdapter(cmd);
                     DataTable dt = new DataTable();
                     da.Fill(dt);
@@ -224,11 +236,53 @@ namespace BI_TICKETING_SYSTEM.Pages
             int ticketId = Convert.ToInt32(hf.Value);
             string newStatus = ddl.SelectedValue;
 
+            if (newStatus.Equals("Assigned", StringComparison.OrdinalIgnoreCase))
+            {
+                ShowError("'Assigned' status is set automatically when a support staff is selected.");
+                LoadTickets();
+                return;
+            }
+
             try
             {
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
+
+                    if (CurrentRole.ToLower() == "user")
+                    {
+                        string checkSql = "SELECT CREATED_BY_USER_ID FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                        using (OracleCommand checkCmd = new OracleCommand(checkSql, conn))
+                        {
+                            checkCmd.BindByName = true;
+                            checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                            object ownerId = checkCmd.ExecuteScalar();
+
+                            if (ownerId == null || Convert.ToInt32(ownerId) != CurrentUserID)
+                            {
+                                ShowError("You can only update your own tickets.");
+                                LoadTickets();
+                                return;
+                            }
+                        }
+                    }
+
+                    if (!newStatus.Equals("New", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string checkAssignSql = "SELECT ASSIGNED_TO_USER_ID FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                        using (OracleCommand checkCmd = new OracleCommand(checkAssignSql, conn))
+                        {
+                            checkCmd.BindByName = true;
+                            checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                            object assignedId = checkCmd.ExecuteScalar();
+                            if (assignedId == null || assignedId == DBNull.Value)
+                            {
+                                ShowError("Please assign a support staff before changing the status.");
+                                LoadTickets();
+                                return;
+                            }
+                        }
+                    }
 
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
 
@@ -243,11 +297,16 @@ namespace BI_TICKETING_SYSTEM.Pages
                     {
                         sql += ", CLOSED_AT = SYSDATE";
                     }
+                    else if (newStatus.Equals("New", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sql += ", ASSIGNED_TO_USER_ID = NULL";
+                    }
 
                     sql += " WHERE TICKET_ID = :ticketId";
 
                     using (var cmd = new OracleCommand(sql, conn))
                     {
+                        cmd.BindByName = true;
                         cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = newStatus;
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                         cmd.ExecuteNonQuery();
@@ -255,6 +314,8 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     var newSnap = GetTicketSnapshot(ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "UPDATE_STATUS", "TICKETS", ticketId, oldSnap, newSnap);
+
+                    InsertStatusRemark(ticketId, newStatus, conn);
 
                     ShowSuccess("Status updated successfully!");
                     LoadTickets();
@@ -284,20 +345,46 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
 
-                    string sql = @"UPDATE BI_OJT.TICKETS 
-                                   SET ASSIGNED_TO_USER_ID = :assignedTo, UPDATED_AT = SYSDATE 
-                                   WHERE TICKET_ID = :ticketId";
+                    bool isAssigning = !string.IsNullOrEmpty(assignedTo);
+                    string sql;
+                    string newStatus;
+
+                    if (isAssigning)
+                    {
+                        sql = @"UPDATE BI_OJT.TICKETS 
+                                SET ASSIGNED_TO_USER_ID = :assignedTo, STATUS = 'Assigned', UPDATED_AT = SYSDATE 
+                                WHERE TICKET_ID = :ticketId";
+                        newStatus = "Assigned";
+                    }
+                    else
+                    {
+                        sql = @"UPDATE BI_OJT.TICKETS 
+                                SET ASSIGNED_TO_USER_ID = NULL, STATUS = 'New', UPDATED_AT = SYSDATE 
+                                WHERE TICKET_ID = :ticketId";
+                        newStatus = "New";
+                    }
 
                     using (var cmd = new OracleCommand(sql, conn))
                     {
-                        cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value =
-                            string.IsNullOrEmpty(assignedTo) ? (object)DBNull.Value : Convert.ToInt32(assignedTo);
+                        cmd.BindByName = true;
+                        if (isAssigning)
+                            cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = Convert.ToInt32(assignedTo);
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                         cmd.ExecuteNonQuery();
                     }
 
                     var newSnap = GetTicketSnapshot(ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "UPDATE_ASSIGNMENT", "TICKETS", ticketId, oldSnap, newSnap);
+
+                    if (isAssigning)
+                    {
+                        string assignedName = ddl.SelectedItem.Text;
+                        InsertAssignmentRemark(ticketId, assignedName, conn);
+                    }
+                    else
+                    {
+                        InsertStatusRemark(ticketId, newStatus, conn);
+                    }
 
                     ShowSuccess("Assignment updated successfully!");
                     LoadTickets();
@@ -333,6 +420,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     using (var cmd = new OracleCommand(sql, conn))
                     {
+                        cmd.BindByName = true;
                         cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value =
                             string.IsNullOrEmpty(newPriority) ? (object)DBNull.Value : newPriority;
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
@@ -367,37 +455,48 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     string year = DateTime.Now.Year.ToString();
                     OracleCommand seqCmd = new OracleCommand("SELECT BI_OJT.TICKETS_NUM_SEQ.NEXTVAL FROM DUAL", conn);
+                    seqCmd.BindByName = true;
                     decimal nextNum = Convert.ToDecimal(seqCmd.ExecuteScalar());
                     string ticketNumber = $"TKT-{year}-{((int)nextNum).ToString("D4")}";
 
                     OracleCommand idCmd = new OracleCommand("SELECT BI_OJT.TICKETS_SEQ.NEXTVAL FROM DUAL", conn);
+                    idCmd.BindByName = true;
                     decimal ticketId = Convert.ToDecimal(idCmd.ExecuteScalar());
 
+                    string selectedPriority = ddlCreatePriority.SelectedValue;
+
                     string sql = @"INSERT INTO BI_OJT.TICKETS 
-                        (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, 
-                         CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT)
+                        (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, PRIORITY,
+                         ASSIGNED_TO_USER_ID, CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT)
                         VALUES 
-                        (:ticketId, :ticketNumber, :title, :description, 'Pending Approval',
-                         :createdBy, SYSDATE, SYSDATE)";
+                        (:ticketId, :ticketNumber, :title, :description, :status, :priority,
+                         :assignedTo, :createdBy, SYSDATE, SYSDATE)";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.BindByName = true;
                     cmd.Parameters.Add("ticketId", OracleDbType.Decimal).Value = ticketId;
                     cmd.Parameters.Add("ticketNumber", OracleDbType.Varchar2).Value = ticketNumber;
                     cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtTitle.Text.Trim();
                     cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtDescription.Text.Trim();
+                    cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = "New";
+                    cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value = selectedPriority;
+                    cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = DBNull.Value;
                     cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
                     cmd.ExecuteNonQuery();
 
                     var newSnap = GetTicketSnapshot((int)ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId, null, newSnap);
 
+                    InsertStatusRemark((int)ticketId, "New", conn);
+
                     txtTitle.Text = "";
                     txtDescription.Text = "";
+                    ddlCreatePriority.SelectedIndex = 0;
 
                     EmailHelper.SendEmail("angjandell24@gmail.com", $"New Ticket Submitted: {ticketNumber}", $"A new ticket has been submitted by {CurrentUserName}. <br/><b>Title:</b> {txtTitle.Text}");
 
                     hfShowModal.Value = "";
-                    ShowSuccess($"Ticket {ticketNumber} submitted successfully! Status: Pending Approval.");
+                    ShowSuccess($"Ticket {ticketNumber} submitted successfully!");
                     LoadTickets();
                 }
             }
@@ -416,6 +515,9 @@ namespace BI_TICKETING_SYSTEM.Pages
             {
                 case "ViewTicket":
                     LoadTicketForView(ticketId);
+                    break;
+                case "EditTicket":
+                    LoadTicketForEdit(ticketId);
                     break;
                 case "DeleteTicket":
                     DeleteTicket(ticketId);
@@ -440,6 +542,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                                    WHERE T.TICKET_ID = :ticketId";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.BindByName = true;
                     cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
 
                     OracleDataAdapter da = new OracleDataAdapter(cmd);
@@ -475,7 +578,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                         LoadTicketRemarks(ticketId, conn);
 
                         hfShowModal.Value = "view";
-                        LoadTickets();
                     }
                 }
             }
@@ -496,6 +598,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                                ORDER BY TR.CREATED_AT ASC";
 
                 OracleCommand cmd = new OracleCommand(sql, conn);
+                cmd.BindByName = true;
                 cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
 
                 OracleDataAdapter da = new OracleDataAdapter(cmd);
@@ -523,6 +626,98 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
         }
 
+        private void LoadTicketForEdit(int ticketId)
+        {
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+                    string sql = "SELECT TICKET_NUMBER, TITLE, DESCRIPTION FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                    OracleCommand cmd = new OracleCommand(sql, conn);
+                    cmd.BindByName = true;
+                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                    OracleDataAdapter da = new OracleDataAdapter(cmd);
+                    DataTable dt = new DataTable();
+                    da.Fill(dt);
+
+                    if (dt.Rows.Count > 0)
+                    {
+                        DataRow row = dt.Rows[0];
+                        hfEditTicketId.Value = ticketId.ToString();
+                        txtEditTicketNumber.Text = row["TICKET_NUMBER"].ToString();
+                        txtEditTitle.Text = row["TITLE"].ToString();
+                        txtEditDescription.Text = row["DESCRIPTION"].ToString();
+
+                        hfShowModal.Value = "edit";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error loading ticket for edit: " + ex.Message);
+            }
+        }
+
+        protected void btnSaveEdit_Click(object sender, EventArgs e)
+        {
+            if (!Page.IsValid) return;
+
+            try
+            {
+                int ticketId = Convert.ToInt32(hfEditTicketId.Value);
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    if (CurrentRole.ToLower() == "user")
+                    {
+                        string checkSql = "SELECT CREATED_BY_USER_ID FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                        using (OracleCommand checkCmd = new OracleCommand(checkSql, conn))
+                        {
+                            checkCmd.BindByName = true;
+                            checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                            object ownerId = checkCmd.ExecuteScalar();
+
+                            if (ownerId == null || Convert.ToInt32(ownerId) != CurrentUserID)
+                            {
+                                ShowError("You can only edit your own tickets.");
+                                return;
+                            }
+                        }
+                    }
+
+                    var oldSnap = GetTicketSnapshot(ticketId, conn);
+
+                    string sql = @"UPDATE BI_OJT.TICKETS 
+                                   SET TITLE = :title, DESCRIPTION = :description, UPDATED_AT = SYSDATE
+                                   WHERE TICKET_ID = :ticketId";
+
+                    using (var cmd = new OracleCommand(sql, conn))
+                    {
+                        cmd.BindByName = true;
+                        cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtEditTitle.Text.Trim();
+                        cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtEditDescription.Text.Trim();
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    var newSnap = GetTicketSnapshot(ticketId, conn);
+                    AuditHelper.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId, oldSnap, newSnap);
+
+                    hfShowModal.Value = "";
+                    ShowSuccess("Ticket updated successfully!");
+                    LoadTickets();
+                }
+            }
+            catch (Exception ex)
+            {
+                hfShowModal.Value = "edit";
+                ShowError("Error updating ticket: " + ex.Message);
+            }
+        }
+
         private void DeleteTicket(int ticketId)
         {
             try
@@ -537,6 +732,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                                         WHERE TICKET_ID = :ticketId";
 
                     OracleCommand checkCmd = new OracleCommand(checkSql, conn);
+                    checkCmd.BindByName = true;
                     checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
 
                     OracleDataAdapter checkDa = new OracleDataAdapter(checkCmd);
@@ -560,13 +756,27 @@ namespace BI_TICKETING_SYSTEM.Pages
                     }
 
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
+                    string oldJson = oldSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(oldSnap);
 
-                    string sql = "DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                    cmd.ExecuteNonQuery();
+                    using (var delRemarks = new OracleCommand("DELETE FROM BI_OJT.TICKET_REMARKS WHERE TICKET_ID = :ticketId", conn))
+                    {
+                        delRemarks.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        delRemarks.ExecuteNonQuery();
+                    }
 
-                    AuditHelper.LogAction(CurrentUserID, "DELETE_TICKET", "TICKETS", ticketId, oldSnap, null);
+                    using (var delAudit = new OracleCommand("DELETE FROM BI_OJT.AUDIT_LOGS WHERE TICKET_ID = :ticketId", conn))
+                    {
+                        delAudit.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        delAudit.ExecuteNonQuery();
+                    }
+
+                    using (var cmd = new OracleCommand("DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId", conn))
+                    {
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    AuditHelper.Log(CurrentUserID, "DELETE_TICKET", oldJson, null);
                     ShowSuccess("Ticket deleted successfully.");
                     LoadTickets();
                 }
@@ -584,6 +794,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
             using (var cmd = new OracleCommand(sql, conn))
             {
+                cmd.BindByName = true;
                 cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                 using (var reader = cmd.ExecuteReader())
                 {
@@ -596,6 +807,36 @@ namespace BI_TICKETING_SYSTEM.Pages
                     snap["PRIORITY"] = reader["PRIORITY"] == DBNull.Value ? null : reader["PRIORITY"].ToString();
                     return snap;
                 }
+            }
+        }
+
+        private void InsertStatusRemark(int ticketId, string newStatus, OracleConnection conn)
+        {
+            string sql = @"INSERT INTO BI_OJT.TICKET_REMARKS 
+                (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT) 
+                VALUES (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
+            using (var cmd = new OracleCommand(sql, conn))
+            {
+                cmd.BindByName = true;
+                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+                cmd.Parameters.Add("remarkText", OracleDbType.Varchar2).Value = "Ticket Status: " + newStatus;
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private void InsertAssignmentRemark(int ticketId, string assignedToName, OracleConnection conn)
+        {
+            string sql = @"INSERT INTO BI_OJT.TICKET_REMARKS 
+                (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT) 
+                VALUES (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
+            using (var cmd = new OracleCommand(sql, conn))
+            {
+                cmd.BindByName = true;
+                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+                cmd.Parameters.Add("remarkText", OracleDbType.Varchar2).Value = "Ticket Status: Assigned to " + assignedToName;
+                cmd.ExecuteNonQuery();
             }
         }
 
@@ -680,12 +921,11 @@ namespace BI_TICKETING_SYSTEM.Pages
         {
             switch (status?.ToLower())
             {
-                case "pending approval": return "badge-pending-approval";
-                case "open": return "badge-open";
+                case "new": return "badge-new";
+                case "assigned": return "badge-assigned";
                 case "in progress": return "badge-in-progress";
                 case "resolved": return "badge-resolved";
                 case "closed": return "badge-closed";
-                case "overdue": return "badge-overdue";
                 default: return "badge-secondary";
             }
         }

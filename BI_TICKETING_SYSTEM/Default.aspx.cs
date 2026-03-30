@@ -74,15 +74,13 @@ namespace BI_TICKETING_SYSTEM
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'RESOLVED'").ToString();
 
                         lblPending.Text = GetScalar(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'PENDING APPROVAL'").ToString();
+                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'NEW'").ToString();
 
                         lblOverdue.Text = GetScalar(conn,
-                            @"SELECT COUNT(*) FROM BI_OJT.TICKETS 
-                              WHERE UPPER(STATUS) NOT IN ('RESOLVED','CLOSED') 
-                              AND CREATED_AT < SYSDATE - 7").ToString();
+                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'ASSIGNED'").ToString();
 
                         lblOpenCount.Text = GetScalar(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'OPEN'").ToString();
+                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'NEW'").ToString();
 
                         lblInProgressCount.Text = GetScalar(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'IN PROGRESS'").ToString();
@@ -102,18 +100,15 @@ namespace BI_TICKETING_SYSTEM
                             userId).ToString();
 
                         lblPending.Text = GetScalarWithParam(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId AND UPPER(STATUS) = 'PENDING APPROVAL'",
+                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId AND UPPER(STATUS) = 'NEW'",
                             userId).ToString();
 
                         lblOverdue.Text = GetScalarWithParam(conn,
-                            @"SELECT COUNT(*) FROM BI_OJT.TICKETS 
-                              WHERE ASSIGNED_TO_USER_ID = :userId
-                              AND UPPER(STATUS) NOT IN ('RESOLVED','CLOSED') 
-                              AND CREATED_AT < SYSDATE - 7",
+                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId AND UPPER(STATUS) = 'ASSIGNED'",
                             userId).ToString();
 
                         lblOpenCount.Text = GetScalarWithParam(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId AND UPPER(STATUS) = 'OPEN'",
+                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId AND UPPER(STATUS) = 'NEW'",
                             userId).ToString();
 
                         lblInProgressCount.Text = GetScalarWithParam(conn,
@@ -136,18 +131,15 @@ namespace BI_TICKETING_SYSTEM
                             userId).ToString();
 
                         lblPending.Text = GetScalarWithParam(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE CREATED_BY_USER_ID = :userId AND UPPER(STATUS) = 'PENDING APPROVAL'",
+                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE CREATED_BY_USER_ID = :userId AND UPPER(STATUS) = 'NEW'",
                             userId).ToString();
 
                         lblOverdue.Text = GetScalarWithParam(conn,
-                            @"SELECT COUNT(*) FROM BI_OJT.TICKETS 
-                              WHERE CREATED_BY_USER_ID = :userId
-                              AND UPPER(STATUS) NOT IN ('RESOLVED','CLOSED') 
-                              AND CREATED_AT < SYSDATE - 7",
+                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE CREATED_BY_USER_ID = :userId AND UPPER(STATUS) = 'ASSIGNED'",
                             userId).ToString();
 
                         lblOpenCount.Text = GetScalarWithParam(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE CREATED_BY_USER_ID = :userId AND UPPER(STATUS) = 'OPEN'",
+                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE CREATED_BY_USER_ID = :userId AND UPPER(STATUS) = 'NEW'",
                             userId).ToString();
 
                         lblInProgressCount.Text = GetScalarWithParam(conn,
