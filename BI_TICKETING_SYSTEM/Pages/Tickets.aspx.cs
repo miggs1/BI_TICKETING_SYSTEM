@@ -447,7 +447,21 @@ namespace BI_TICKETING_SYSTEM.Pages
             try
             {
                 string attachmentPath = SaveAttachment(fuAttachment);
-                DateTime dueDate = DateTime.ParseExact(txtDueDate.Text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+                DateTime dueDate;
+                if (!string.IsNullOrWhiteSpace(txtDueDate.Text) &&
+                    DateTime.TryParseExact(txtDueDate.Text, "yyyy-MM-dd",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out dueDate))
+                {
+                    // User provided or JS auto-filled a date — use it
+                }
+                else
+                {
+                    // Fallback: compute from priority
+                    int slaHours = GetSlaHoursByPriority(ddlCreatePriority.SelectedValue);
+                    dueDate = CalculateSlaWorkingHours(DateTime.Now, slaHours);
+                }
+
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
@@ -998,6 +1012,61 @@ namespace BI_TICKETING_SYSTEM.Pages
                 default: return null; //unassigned
             }
         }
+
+        private DateTime CalculateSlaWorkingHours(DateTime startDate, int workingHours)
+        {
+            DateTime current = startDate;
+
+            // If start is outside working hours, move to next working day start
+            if (current.DayOfWeek == DayOfWeek.Saturday)
+                current = current.AddDays(2).Date.AddHours(8);
+            else if (current.DayOfWeek == DayOfWeek.Sunday)
+                current = current.AddDays(1).Date.AddHours(8);
+            else if (current.TimeOfDay < TimeSpan.FromHours(8))
+                current = current.Date.AddHours(8);
+            else if (current.TimeOfDay >= TimeSpan.FromHours(17))
+                current = current.AddDays(1).Date.AddHours(8);
+
+            int hoursRemaining = workingHours;
+
+            while (hoursRemaining > 0)
+            {
+                // Skip weekends
+                if (current.DayOfWeek == DayOfWeek.Saturday)
+                { current = current.AddDays(2).Date.AddHours(8); continue; }
+                if (current.DayOfWeek == DayOfWeek.Sunday)
+                { current = current.AddDays(1).Date.AddHours(8); continue; }
+
+                DateTime workEnd = current.Date.AddHours(17);
+                double hoursLeftToday = (workEnd - current).TotalHours;
+
+                if (hoursRemaining <= hoursLeftToday)
+                {
+                    current = current.AddHours(hoursRemaining);
+                    hoursRemaining = 0;
+                }
+                else
+                {
+                    hoursRemaining -= (int)hoursLeftToday;
+                    current = current.AddDays(1).Date.AddHours(8);
+                }
+            }
+
+            return current;
+        }
+
+        private int GetSlaHoursByPriority(string priority)
+        {
+            switch (priority?.ToLower())
+            {
+                case "urgent": return 4;
+                case "high": return 8;
+                case "medium": return 24;
+                case "low": return 40;
+                default: return 24;
+            }
+        }
+
         //how many days a ticket has been opened calculator
         protected string GetAging(object createdAt, object resolvedAt, object status)
         {

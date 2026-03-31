@@ -292,7 +292,7 @@
                     <div class="row mb-3">
                         <div class="col-md-4">
                             <label class="form-label">Priority <span class="required-star">*</span></label>
-                            <asp:DropDownList ID="ddlCreatePriority" runat="server" CssClass="form-control filter-select">
+                           <asp:DropDownList ID="ddlCreatePriority" runat="server" CssClass="form-control filter-select">
                                 <asp:ListItem Value="">-- Select Priority --</asp:ListItem>
                                 <asp:ListItem Value="Low">Low</asp:ListItem>
                                 <asp:ListItem Value="Medium">Medium</asp:ListItem>
@@ -551,7 +551,10 @@
                 toast: true
             });
         }
-
+        $('#<%= ddlCreatePriority.ClientID %>').on('change', function ()
+        {
+            computeSLADueDate($(this).val(), '<%= txtDueDate.ClientID %>');
+        });
         var modal = $('#<%= hfShowModal.ClientID %>').val();
         if (modal === 'view') {
             $('#modalViewTicket').modal('show');
@@ -755,6 +758,55 @@
         });
 
         return false;
+    }
+
+    function computeSLADueDate(priority, dueDateFieldId) {
+        var hoursMap = { 'Urgent': 4, 'High': 8, 'Medium': 24, 'Low': 40 };
+        var hours = hoursMap[priority];
+        if (!hours) return;
+
+        var now = new Date();
+        var result = addWorkingHours(now, hours);
+
+        // Format as yyyy-MM-dd for TextMode="Date"
+        var yyyy = result.getFullYear();
+        var mm = String(result.getMonth() + 1).padStart(2, '0');
+        var dd = String(result.getDate()).padStart(2, '0');
+        document.getElementById(dueDateFieldId).value = yyyy + '-' + mm + '-' + dd;
+    }
+
+    function addWorkingHours(start, hoursToAdd) {
+        var current = new Date(start);
+
+        // Snap to start of next working period if outside hours
+        current = snapToWorkingTime(current);
+
+        while (hoursToAdd > 0) {
+            var workEnd = new Date(current);
+            workEnd.setHours(17, 0, 0, 0);
+
+            var hoursLeftToday = (workEnd - current) / 3600000;
+
+            if (hoursToAdd <= hoursLeftToday) {
+                current = new Date(current.getTime() + hoursToAdd * 3600000);
+                hoursToAdd = 0;
+            } else {
+                hoursToAdd -= hoursLeftToday;
+                current.setDate(current.getDate() + 1);
+                current.setHours(8, 0, 0, 0);
+                current = snapToWorkingTime(current);
+            }
+        }
+        return current;
+    }
+
+    function snapToWorkingTime(dt) {
+        var day = dt.getDay(); // 0=Sun, 6=Sat
+        if (day === 6) { dt.setDate(dt.getDate() + 2); dt.setHours(8, 0, 0, 0); }
+        else if (day === 0) { dt.setDate(dt.getDate() + 1); dt.setHours(8, 0, 0, 0); }
+        else if (dt.getHours() < 8) { dt.setHours(8, 0, 0, 0); }
+        else if (dt.getHours() >= 17) { dt.setDate(dt.getDate() + 1); dt.setHours(8, 0, 0, 0); dt = snapToWorkingTime(dt); }
+        return dt;
     }
 </script>
 </asp:Content>
