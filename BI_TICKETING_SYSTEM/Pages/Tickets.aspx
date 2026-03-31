@@ -45,13 +45,15 @@
     .alert-danger-custom { background: #f8d7da; border: 1px solid #f5c6cb; border-left: 4px solid #dc3545; border-radius: 8px; color: #721c24; padding: 10px 15px; font-size: 13px; }
     .remarks-section { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 20px; }
     .remarks-title { font-size: 13px; font-weight: 600; color: #001f54; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 15px; border-bottom: 2px solid #001f54; padding-bottom: 8px; }
-    .remark-item { background: white; border-radius: 6px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .remark-status { border-left: 3px solid #007bff;}
-    .remark-note { border-left: 3px solid #28a745; }
-    .remark-header { font-size: 11px; color: #666; margin-bottom: 8px; }
-    .remark-text { font-size: 13px; color: #333; line-height: 1.6; white-space: pre-wrap; }
-    .remark-author { font-weight: 600; color: #001f54; }
     .no-remarks { text-align: center; color: #999; font-size: 12px; font-style: italic; padding: 20px; }
+    .audit-trail-table { margin-bottom: 0; }
+    .audit-trail-table th { background: #001f54; color: white; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .audit-trail-table td { font-size: 12px; vertical-align: middle; padding: 8px 10px; }
+    .audit-row-user { border-left: 3px solid #dc3545; background: rgba(220, 53, 69, 0.05); }
+    .audit-row-admin { border-left: 3px solid #007bff; background: rgba(0, 123, 255, 0.05); }
+    .audit-row-support { border-left: 3px solid #28a745; background: rgba(40, 167, 69, 0.05); }
+    .audit-badge-status { background: #17a2b8; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: inline-block; }
+    .audit-badge-remark { background: #28a745; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: inline-block; }
 
 </style>
 </asp:Content>
@@ -435,23 +437,40 @@
                         <div class="remarks-title">
                             <i class="fas fa-comments mr-2"></i>Audit Trail
                         </div>
-                        <asp:Repeater ID="rptRemarks" runat="server">
-                            <ItemTemplate>
-                                <div class='remark-item <%# Eval("REMARK_TEXT").ToString().StartsWith("Ticket Status:") ? "remark-status" : "remark-note" %>'>
-                                    <div class="remark-header">
-                                        <span class="remark-author"><%# Eval("FULL_NAME") %></span>
-                                        <span class="text-muted ml-2"> - </span>
-                                        <span class="text-muted ml-2"><%# Convert.ToDateTime(Eval("CREATED_AT")).ToString("MMM dd, yyyy hh:mm tt") %></span>
-                                    </div>
-                                    <div class="remark-text">
-                                        <%# Eval("REMARK_TEXT") %>
-                                    </div>
-                                </div>
-                            </ItemTemplate>
-                        </asp:Repeater>
+                        <div class="table-responsive">
+                            <table class="table table-bordered audit-trail-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:155px;">Date</th>
+                                        <th>Changed By</th>
+                                        <th style="width:110px;">Type</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="auditTrailBody">
+                                    <asp:Repeater ID="rptRemarks" runat="server">
+                                        <ItemTemplate>
+                                            <tr class='audit-trail-row <%# GetAuditRowClass(Eval("USER_ROLE").ToString()) %>'>
+                                                <td style="white-space:nowrap;"><%# Eval("DATE_DISPLAY") %></td>
+                                                <td><%# Eval("CHANGED_BY") %></td>
+                                                <td><span class='<%# Eval("ENTRY_TYPE").ToString() == "Status Change" ? "audit-badge-status" : "audit-badge-remark" %>'><%# Eval("ENTRY_TYPE") %></span></td>
+                                                <td style="white-space:pre-wrap;"><%# Eval("DETAILS") %></td>
+                                            </tr>
+                                        </ItemTemplate>
+                                    </asp:Repeater>
+                                </tbody>
+                            </table>
+                        </div>
                         <asp:Panel ID="pnlNoRemarks" runat="server" Visible="false" CssClass="no-remarks">
                             <i class="fas fa-info-circle mr-2"></i>No remarks have been added to this ticket yet.
                         </asp:Panel>
+                        <div class="d-flex justify-content-between align-items-center mt-2" id="auditPaginationTickets">
+                            <span class="pagination-info" id="auditPageInfoTickets"></span>
+                            <div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary mr-1" id="btnAuditPrevTickets" onclick="auditPrev()">Prev</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnAuditNextTickets" onclick="auditNext()">Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -542,7 +561,54 @@
             $('#modalCreateTicket').modal('show');
         }
 
+        $('#modalViewTicket').on('shown.bs.modal', function () {
+            auditCurrentPage = 1;
+            auditPaginate();
+        });
+
+        if (modal === 'view') {
+            auditCurrentPage = 1;
+            auditPaginate();
+        }
+
     });
+
+    var auditCurrentPage = 1;
+    var auditPageSize = 5;
+
+    function auditPaginate() {
+        var rows = $('#auditTrailBody tr.audit-trail-row');
+        var total = rows.length;
+        var totalPages = Math.ceil(total / auditPageSize);
+        if (auditCurrentPage > totalPages) auditCurrentPage = totalPages;
+        if (auditCurrentPage < 1) auditCurrentPage = 1;
+        rows.hide();
+        var start = (auditCurrentPage - 1) * auditPageSize;
+        var end = start + auditPageSize;
+        rows.slice(start, end).show();
+        var pageInfo = document.getElementById('auditPageInfoTickets');
+        var pagination = document.getElementById('auditPaginationTickets');
+        if (total > 0 && pagination) {
+            pagination.style.display = '';
+            if (pageInfo) pageInfo.textContent = 'Showing ' + (start + 1) + '\u2013' + Math.min(end, total) + ' of ' + total + ' entries';
+        } else if (pagination) {
+            pagination.style.display = 'none';
+        }
+        var btnPrev = document.getElementById('btnAuditPrevTickets');
+        var btnNext = document.getElementById('btnAuditNextTickets');
+        if (btnPrev) btnPrev.disabled = (auditCurrentPage <= 1);
+        if (btnNext) btnNext.disabled = (auditCurrentPage >= totalPages);
+    }
+
+    function auditPrev() {
+        if (auditCurrentPage > 1) { auditCurrentPage--; auditPaginate(); }
+    }
+
+    function auditNext() {
+        var rows = $('#auditTrailBody tr.audit-trail-row');
+        var totalPages = Math.ceil(rows.length / auditPageSize);
+        if (auditCurrentPage < totalPages) { auditCurrentPage++; auditPaginate(); }
+    }
 
     function confirmDelete(btn) {
         Swal.fire({

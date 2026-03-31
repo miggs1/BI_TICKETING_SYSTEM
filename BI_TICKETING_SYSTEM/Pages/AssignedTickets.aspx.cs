@@ -243,7 +243,6 @@ namespace BI_TICKETING_SYSTEM.Pages
         }
 
 
-        // ===== LOAD REMARKS =====
         private void LoadRemarks(int ticketId)
         {
             try
@@ -252,28 +251,28 @@ namespace BI_TICKETING_SYSTEM.Pages
                 {
                     conn.Open();
                     string sql = @"
-                        SELECT R.REMARK_ID,
-                               R.TICKET_ID,
-                               R.REMARK_TEXT,
+                        SELECT R.REMARK_TEXT,
                                R.CREATED_AT,
-                               U.FULL_NAME AS CREATED_BY_NAME
+                               U.FULL_NAME AS CREATED_BY_NAME,
+                               U.ROLE
                         FROM BI_OJT.TICKET_REMARKS R
                         LEFT JOIN BI_OJT.USERS U
                         ON R.USER_ID = U.USER_ID
                         WHERE R.TICKET_ID = :ticketId
-                        ORDER BY R.CREATED_AT DESC";
+                        ORDER BY R.CREATED_AT ASC";
                     OracleCommand cmd = new OracleCommand(sql, conn);
                     cmd.BindByName = true;
                     cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
 
                     OracleDataAdapter da = new OracleDataAdapter(cmd);
-                    DataTable dt = new DataTable();
-                    da.Fill(dt);
+                    DataTable dtRaw = new DataTable();
+                    da.Fill(dtRaw);
+
+                    DataTable dt = BuildAuditTrailTable(dtRaw);
 
                     rptRemarks.DataSource = dt;
                     rptRemarks.DataBind();
 
-                    // Show "No remarks yet." panel when there are no rows
                     pnlNoRemarks.Visible = (dt.Rows.Count == 0);
                     rptRemarks.Visible = (dt.Rows.Count > 0);
                 }
@@ -281,6 +280,65 @@ namespace BI_TICKETING_SYSTEM.Pages
             catch (Exception ex)
             {
                 ShowError("Error loading remarks: " + ex.Message);
+            }
+        }
+
+        private DataTable BuildAuditTrailTable(DataTable dtRaw)
+        {
+            DataTable dt = new DataTable();
+            dt.Columns.Add("DATE_DISPLAY", typeof(string));
+            dt.Columns.Add("CHANGED_BY", typeof(string));
+            dt.Columns.Add("ENTRY_TYPE", typeof(string));
+            dt.Columns.Add("DETAILS", typeof(string));
+            dt.Columns.Add("USER_ROLE", typeof(string));
+
+            foreach (DataRow rawRow in dtRaw.Rows)
+            {
+                string remarkText = rawRow["REMARK_TEXT"].ToString();
+                string fullName = rawRow["CREATED_BY_NAME"] != DBNull.Value ? rawRow["CREATED_BY_NAME"].ToString() : "";
+                string role = rawRow["ROLE"] != DBNull.Value ? rawRow["ROLE"].ToString() : "";
+                DateTime createdAt = Convert.ToDateTime(rawRow["CREATED_AT"]);
+                string dateDisplay = createdAt.ToString("MM/dd/yyyy h:mm") + createdAt.ToString("tt").ToLower();
+
+                string entryType;
+                string details;
+
+                if (remarkText == "Ticket Status: New")
+                {
+                    entryType = "Status Change";
+                    details = "Created a new ticket";
+                }
+                else if (remarkText.StartsWith("Ticket Status: Assigned to "))
+                {
+                    entryType = "Status Change";
+                    string assignedName = remarkText.Substring("Ticket Status: Assigned to ".Length);
+                    details = fullName + " assigned ticket to " + assignedName;
+                }
+                else if (remarkText.StartsWith("Ticket Status: "))
+                {
+                    entryType = "Status Change";
+                    details = remarkText;
+                }
+                else
+                {
+                    entryType = "Remarks";
+                    details = remarkText;
+                }
+
+                dt.Rows.Add(dateDisplay, fullName, entryType, details, role.ToLower());
+            }
+
+            return dt;
+        }
+
+        protected string GetAuditRowClass(string role)
+        {
+            switch (role?.ToLower())
+            {
+                case "user": return "audit-row-user";
+                case "admin": return "audit-row-admin";
+                case "support": return "audit-row-support";
+                default: return "";
             }
         }
 
