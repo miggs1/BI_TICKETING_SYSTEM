@@ -446,7 +446,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
             try
             {
-                string attachmentPath = SaveAttachment((FileUpload)Master.FindControl("MainContent").FindControl("fuAttachment"));
+                string attachmentPath = SaveAttachment(fuAttachment);
                 DateTime dueDate = DateTime.ParseExact(txtDueDate.Text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
@@ -466,10 +466,10 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     string sql = @"INSERT INTO BI_OJT.TICKETS 
                     (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, PRIORITY,
-                     ASSIGNED_TO_USER_ID, CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT, DUE_DATE)
+                     ASSIGNED_TO_USER_ID, CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT, DUE_DATE, ATTACHMENT_PATH)
                     VALUES 
                     (:ticketId, :ticketNumber, :title, :description, :status, :priority,
-                     :assignedTo, :createdBy, SYSDATE, SYSDATE, :dueDate)";
+                     :assignedTo, :createdBy, SYSDATE, SYSDATE, :dueDate, :attachmentPath)";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
                     cmd.BindByName = true;
@@ -482,6 +482,8 @@ namespace BI_TICKETING_SYSTEM.Pages
                     cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = DBNull.Value;
                     cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
                     cmd.Parameters.Add("dueDate", OracleDbType.Date).Value = dueDate;
+                    cmd.Parameters.Add("attachmentPath", OracleDbType.Varchar2).Value =
+                        string.IsNullOrEmpty(attachmentPath) ? (object)DBNull.Value : attachmentPath;
                     cmd.ExecuteNonQuery();
 
                     var newSnap = GetTicketSnapshot((int)ticketId, conn);
@@ -617,9 +619,11 @@ namespace BI_TICKETING_SYSTEM.Pages
                             lblNoAttachment.Visible = true;
                         }
 
-                        LoadTicketRemarks(ticketId, conn);
+                        hfShowModal.Value = "view";
+                        // Temporary debug - remove after confirming
+                        lblViewTitle.Text += " [PATH:" + row["ATTACHMENT_PATH"].ToString() + "]";
 
-                        hfShowModal.Value = "view"; 
+
                         LoadTicketRemarks(ticketId, conn);
 
 
@@ -962,6 +966,7 @@ namespace BI_TICKETING_SYSTEM.Pages
         }
         private string SaveAttachment(FileUpload fileUploadControl)
         {
+
             if (fileUploadControl.HasFile)
             {
                 string fileName = Guid.NewGuid().ToString().Substring(0, 8) + "_" + fileUploadControl.FileName;

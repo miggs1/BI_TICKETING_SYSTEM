@@ -16,7 +16,7 @@
 </head>
 
 <body class="hold-transition sidebar-mini layout-fixed sidebar-collapse">
-<form id="form1" runat="server">
+<form id="form1" runat="server" enctype="multipart/form-data">
 
     <!-- TOP NAVBAR -->
     <nav class="main-header navbar navbar-expand navbar-dark">
