@@ -59,6 +59,11 @@
     .export-item { display: flex; align-items: center; width: 100%; border: none; background: transparent; text-align: left; padding: 10px 14px; font-size: 13px; color: #001f54; cursor: pointer; white-space: nowrap; }
     .export-item:hover { background: #f0f4ff; }
     .export-item i { width: 18px; margin-right: 8px; }
+    .filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .filter-row .filter-status { width: 150px; flex-shrink: 0; }
+    .filter-row .filter-date { width: 130px; flex-shrink: 0; }
+    .filter-row .filter-search { flex: 1; min-width: 180px; }
+    .filter-row .filter-export { flex-shrink: 0; margin-left: auto; }
 </style>
 </asp:Content>
 
@@ -82,9 +87,25 @@
         </div>
 
         <div class="card-body">
-            <!-- Search and Filter Row -->
-            <div class="row mb-3">
-                <div class="col-md-6">
+            <div class="filter-row mb-3">
+                <div class="filter-status">
+                    <asp:DropDownList ID="ddlFilterStatus" runat="server" CssClass="form-control filter-select" AutoPostBack="true" OnSelectedIndexChanged="ddlFilter_Changed">
+                        <asp:ListItem Value="">Ticket Status</asp:ListItem>
+                        <asp:ListItem Value="">All Status</asp:ListItem>
+                        <asp:ListItem Value="New">New</asp:ListItem>
+                        <asp:ListItem Value="Assigned">Assigned</asp:ListItem>
+                        <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
+                        <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
+                        <asp:ListItem Value="Closed">Closed</asp:ListItem>
+                    </asp:DropDownList>
+                </div>
+                <div class="filter-date">
+                    <asp:TextBox ID="txtFromDate" runat="server" TextMode="Date" CssClass="form-control filter-select" placeholder="From" />
+                </div>
+                <div class="filter-date">
+                    <asp:TextBox ID="txtToDate" runat="server" TextMode="Date" CssClass="form-control filter-select" placeholder="To" />
+                </div>
+                <div class="filter-search">
                     <div class="input-group">
                         <asp:TextBox ID="txtSearch" runat="server" CssClass="form-control search-bar" placeholder="Search by ticket number or title..." />
                         <div class="input-group-append">
@@ -92,21 +113,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3">
-                    <!-- STATUS FILTER -->
-                    <asp:DropDownList ID="ddlFilterStatus" runat="server" CssClass="form-control filter-select" AutoPostBack="true" OnSelectedIndexChanged="ddlFilter_Changed">
-                        <asp:ListItem Value="">-- All Status --</asp:ListItem>
-                        <asp:ListItem Value="New">New</asp:ListItem>
-                        <asp:ListItem Value="Assigned">Assigned</asp:ListItem>
-                        <asp:ListItem Value="In Progress">In Progress</asp:ListItem>
-                        <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
-                        <asp:ListItem Value="Closed">Closed</asp:ListItem>
-                    </asp:DropDownList>
-                    <!-- DATE FILTER -->
-                    <asp:TextBox ID="txtFromDate" runat="server" TextMode="Date" CssClass="form-control" />
-                    <asp:TextBox ID="txtToDate" runat="server" TextMode="Date" CssClass="form-control" />
-                </div>
-                <div class="col-md-3 d-flex justify-content-end">
+                <div class="filter-export">
                     <div class="export-dropdown">
                         <button type="button" class="export-toggle" onclick="toggleExportMenu(event)">
                             <span><i class="fas fa-download mr-1"></i>Export</span>
