@@ -44,7 +44,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                 pnlCreateBtn.Visible = (CurrentRole.ToLower() != "support");
 
                 txtCreatedBy.Text = CurrentUserName;
-                txtCreatedDate.Text = DateTime.Now.ToString("MM/dd/yyyy");
 
                 LoadTickets();
             }
@@ -448,7 +447,7 @@ namespace BI_TICKETING_SYSTEM.Pages
             try
             {
                 string attachmentPath = SaveAttachment((FileUpload)Master.FindControl("MainContent").FindControl("fuAttachment"));
-                DateTime? dueDate = CalculateSlaDueDate("medium", DateTime.Now);
+                DateTime dueDate = DateTime.ParseExact(txtDueDate.Text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
@@ -466,11 +465,11 @@ namespace BI_TICKETING_SYSTEM.Pages
                     string selectedPriority = ddlCreatePriority.SelectedValue;
 
                     string sql = @"INSERT INTO BI_OJT.TICKETS 
-                        (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, PRIORITY,
-                         ASSIGNED_TO_USER_ID, CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT)
-                        VALUES 
-                        (:ticketId, :ticketNumber, :title, :description, :status, :priority,
-                         :assignedTo, :createdBy, SYSDATE, SYSDATE)";
+                    (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, PRIORITY,
+                     ASSIGNED_TO_USER_ID, CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT, DUE_DATE)
+                    VALUES 
+                    (:ticketId, :ticketNumber, :title, :description, :status, :priority,
+                     :assignedTo, :createdBy, SYSDATE, SYSDATE, :dueDate)";
 
                     OracleCommand cmd = new OracleCommand(sql, conn);
                     cmd.BindByName = true;
@@ -482,6 +481,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                     cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value = selectedPriority;
                     cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = DBNull.Value;
                     cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
+                    cmd.Parameters.Add("dueDate", OracleDbType.Date).Value = dueDate;
                     cmd.ExecuteNonQuery();
 
                     var newSnap = GetTicketSnapshot((int)ticketId, conn);
@@ -491,7 +491,20 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     txtTitle.Text = "";
                     txtDescription.Text = "";
+                    txtDueDate.Text = "";
                     ddlCreatePriority.SelectedIndex = 0;
+
+                    if (dueDate <= DateTime.Now)
+                    {
+                        ShowError("Due date must be in the future.");
+                        hfShowModal.Value = "create";
+                        return;
+                    }
+
+                    if (!IsPostBack)
+                    {
+                        txtDueDate.Text = DateTime.Now.AddDays(1).ToString("yyyy-MM-ddTHH:mm");
+                    }
 
                     EmailHelper.SendEmail("angjandell24@gmail.com", $"New Ticket Submitted: {ticketNumber}", $"A new ticket has been submitted by {CurrentUserName}. <br/><b>Title:</b> {txtTitle.Text}");
 
@@ -560,24 +573,56 @@ namespace BI_TICKETING_SYSTEM.Pages
                         lblViewCreatedDate.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
                         lblViewAssignedTo.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString();
                         lblViewAssignedToRole.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_ROLE"].ToString()) ? "-" : row["ASSIGNED_TO_ROLE"].ToString();
+                        // Due Date
+                        lblViewDueDate.Text = row["DUE_DATE"] == DBNull.Value
+                            ? "Not Set"
+                            : Convert.ToDateTime(row["DUE_DATE"]).ToString("MM/dd/yyyy");
 
-                        //new attachment view logic
-                        string attachmentPath = row["ATTACHMENT_PATH"].ToString();
-                        if (!string.IsNullOrEmpty(attachmentPath))
+                        // Attachment preview
+                        try
                         {
-                            hlViewAttachment.NavigateUrl = ResolveUrl(attachmentPath);
-                            hlViewAttachment.Visible = true;
-                            lblNoAttachment.Visible = false;
+                            string attachmentPath = row["ATTACHMENT_PATH"].ToString();
+                            if (!string.IsNullOrEmpty(attachmentPath))
+                            {
+                                string resolvedUrl = ResolveUrl(attachmentPath);
+                                string ext = System.IO.Path.GetExtension(attachmentPath).ToLower();
+                                bool isImage = ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".bmp" || ext == ".webp";
+
+                                if (isImage)
+                                {
+                                    imgAttachmentPreview.ImageUrl = resolvedUrl;
+                                    hlViewAttachment.NavigateUrl = resolvedUrl;
+                                    pnlAttachmentPreview.Visible = true;
+                                    pnlAttachmentLink.Visible = false;
+                                }
+                                else
+                                {
+                                    hlViewAttachmentFile.NavigateUrl = resolvedUrl;
+                                    pnlAttachmentLink.Visible = true;
+                                    pnlAttachmentPreview.Visible = false;
+                                }
+                                lblNoAttachment.Visible = false;
+                            }
+                            else
+                            {
+                                pnlAttachmentPreview.Visible = false;
+                                pnlAttachmentLink.Visible = false;
+                                lblNoAttachment.Visible = true;
+                            }
                         }
-                        else
+                        catch
                         {
-                            hlViewAttachment.Visible = false;
+                            pnlAttachmentPreview.Visible = false;
+                            pnlAttachmentLink.Visible = false;
                             lblNoAttachment.Visible = true;
                         }
 
                         LoadTicketRemarks(ticketId, conn);
 
-                        hfShowModal.Value = "view";
+                        hfShowModal.Value = "view"; 
+                        LoadTicketRemarks(ticketId, conn);
+
+
                     }
                 }
             }
@@ -633,7 +678,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
-                    string sql = "SELECT TICKET_NUMBER, TITLE, DESCRIPTION FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                    string sql = "SELECT TICKET_NUMBER, TITLE, DESCRIPTION, DUE_DATE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId"; 
                     OracleCommand cmd = new OracleCommand(sql, conn);
                     cmd.BindByName = true;
                     cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
@@ -649,6 +694,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                         txtEditTicketNumber.Text = row["TICKET_NUMBER"].ToString();
                         txtEditTitle.Text = row["TITLE"].ToString();
                         txtEditDescription.Text = row["DESCRIPTION"].ToString();
+                        txtEditDueDate.Text = row["DUE_DATE"] != DBNull.Value
+                            ? Convert.ToDateTime(row["DUE_DATE"]).ToString("yyyy-MM-dd")
+                            : string.Empty;
 
                         hfShowModal.Value = "edit";
                     }
@@ -691,14 +739,23 @@ namespace BI_TICKETING_SYSTEM.Pages
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
 
                     string sql = @"UPDATE BI_OJT.TICKETS 
-                                   SET TITLE = :title, DESCRIPTION = :description, UPDATED_AT = SYSDATE
-                                   WHERE TICKET_ID = :ticketId";
+                                   SET TITLE = :title, DESCRIPTION = :description, UPDATED_AT = SYSDATE";
+
+                    bool hasDueDate = !string.IsNullOrWhiteSpace(txtEditDueDate.Text) && DateTime.TryParse(txtEditDueDate.Text, out _);
+                    if (hasDueDate)
+                        sql += ", DUE_DATE = :dueDate";
+
+
+
+                    sql += " WHERE TICKET_ID = :ticketId";
 
                     using (var cmd = new OracleCommand(sql, conn))
                     {
                         cmd.BindByName = true;
                         cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtEditTitle.Text.Trim();
                         cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtEditDescription.Text.Trim();
+                        if (!string.IsNullOrWhiteSpace(txtEditDueDate.Text) && DateTime.TryParse(txtEditDueDate.Text, out DateTime parsedDueDate))
+                            cmd.Parameters.Add("dueDate", OracleDbType.Date).Value = parsedDueDate;
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                         cmd.ExecuteNonQuery();
                     }

@@ -124,7 +124,6 @@
                                     <th>Last Updated</th>
                                     <th>Due Date</th>
                                     <th>Aging</th>
-                                    <th style="width:120px;">Actions</th>
                                     <th style="width:160px;">Actions</th>
                                 </tr>
                             </thead>
@@ -193,18 +192,24 @@
                             </td>
 
                             <td>
-                                <asp:LinkButton runat="server" CommandName="ViewTicket"
+                                <asp:LinkButton runat="server"
+                                    CommandName="ViewTicket"
                                     CommandArgument='<%# Eval("TICKET_ID") %>'
                                     CssClass="btn btn-action btn-view mr-1"
-                                    ToolTip="View">
+                                    ToolTip="View"
+                                    CausesValidation="false"
+                                    UseSubmitBehavior="false">
                                     <i class="fas fa-eye"></i>
                                 </asp:LinkButton>
 
-                                <asp:LinkButton runat="server" CommandName="EditTicket"
+                                <asp:LinkButton runat="server"
+                                    CommandName="EditTicket"
                                     CommandArgument='<%# Eval("TICKET_ID") %>'
                                     CssClass="btn btn-action btn-edit mr-1"
-                                    Visible='<%# Session["UserRole"] != null && (Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user") %>'
-                                    ToolTip="Edit">
+                                    ToolTip="Edit"
+                                    CausesValidation="false"
+                                    UseSubmitBehavior="false"
+                                    Visible='<%# Session["UserRole"] != null && (Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user") %>'>
                                     <i class="fas fa-edit"></i>
                                 </asp:LinkButton>
 
@@ -300,10 +305,23 @@
                             <label class="form-label">Created By</label>
                             <asp:TextBox ID="txtCreatedBy" runat="server" CssClass="form-control" ReadOnly="true" />
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Created Date</label>
-                            <asp:TextBox ID="txtCreatedDate" runat="server" CssClass="form-control" ReadOnly="true" />
-                        </div>
+                            <div class="col-md-4">
+                            <label>Due Date:</label>
+                                <asp:TextBox 
+                                    ID="txtDueDate" 
+                                    runat="server" 
+                                    CssClass="form-control" 
+                                    TextMode="Date">
+                                </asp:TextBox>
+                                <asp:RequiredFieldValidator 
+                                    ID="rfvDueDate" 
+                                    runat="server" 
+                                    ControlToValidate="txtDueDate"
+                                    ErrorMessage="Due Date is required."
+                                    ForeColor="Red"
+                                    Display="Dynamic">
+                                </asp:RequiredFieldValidator>
+                            </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -352,15 +370,30 @@
                             </p>
                         </div>
                     </div>
-                    <div class ="row mb-3">
+                    <div class="row mb-3">
                         <div class="col-12">
                             <label class="form-label">Attachment</label><br />
-                            <asp:HyperLink ID="hlViewAttachment" runat="server" Target="_blank" CssClass="btn btn-sm btn-outline-primary" Visible="false">
-                                <i class="fas fa-paperclip mr-1"></i> View Screenshot
-                            </asp:HyperLink>
+                            <%-- Shown for image attachments: inline preview + open link --%>
+                            <asp:Panel ID="pnlAttachmentPreview" runat="server" Visible="false">
+                                <div style="margin-bottom:8px;">
+                                    <asp:Image ID="imgAttachmentPreview" runat="server"
+                                        style="max-width:100%; max-height:320px; border-radius:8px; border:1px solid #dee2e6; cursor:pointer;"
+                                        onclick="window.open(this.src,'_blank')"
+                                        title="Click to open full size" />
+                                </div>
+                                <asp:HyperLink ID="hlViewAttachment" runat="server" Target="_blank" CssClass="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-external-link-alt mr-1"></i> Open Full Size
+                                </asp:HyperLink>
+                            </asp:Panel>
+                            <%-- Shown for non-image attachments (PDF, etc.) --%>
+                            <asp:Panel ID="pnlAttachmentLink" runat="server" Visible="false">
+                                <asp:HyperLink ID="hlViewAttachmentFile" runat="server" Target="_blank" CssClass="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-paperclip mr-1"></i> View Attachment
+                                </asp:HyperLink>
+                            </asp:Panel>
                             <asp:Label ID="lblNoAttachment" runat="server" Text="No Attachment Provided." CssClass="text-muted" Visible="false" />
                         </div>
-                    </div>
+                    </div>                    
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Created By</label>
@@ -386,6 +419,14 @@
                             <label class="form-label">Assigned To Role</label>
                             <p class="form-control-plaintext">
                                 <asp:Label ID="lblViewAssignedToRole" runat="server" />
+                            </p>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Due Date</label>
+                            <p class="form-control-plaintext">
+                                <asp:Label ID="lblViewDueDate" runat="server" />
                             </p>
                         </div>
                     </div>
@@ -451,6 +492,12 @@
                             <asp:RequiredFieldValidator ID="rfvEditDescription" runat="server" ControlToValidate="txtEditDescription"
                                 ErrorMessage="Description is required." ForeColor="Red" Display="Dynamic"
                                 ValidationGroup="EditTicket" Font-Size="11px" />
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Due Date</label>
+                            <asp:TextBox ID="txtEditDueDate" runat="server" CssClass="form-control" TextMode="Date" />
                         </div>
                     </div>
                 </div>
