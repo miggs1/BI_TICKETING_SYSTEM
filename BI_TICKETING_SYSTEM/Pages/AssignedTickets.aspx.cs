@@ -538,17 +538,6 @@ namespace BI_TICKETING_SYSTEM.Pages
             LoadTickets();
         }
 
-        protected void ddlFilter_Changed(object sender, EventArgs e)
-        {
-            CurrentPage = 1;
-            LoadTickets();
-        }
-        protected void txtDate_Changed(object sender, EventArgs e)
-        {
-            CurrentPage = 1;
-            LoadTickets();
-        }
-
         // ===== EXPORT =====
         private DataTable GetFilteredTickets()
         {

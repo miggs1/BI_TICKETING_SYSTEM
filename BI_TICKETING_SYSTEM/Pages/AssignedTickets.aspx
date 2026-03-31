@@ -3,7 +3,10 @@
 <asp:Content ID="HeadContent" ContentPlaceHolderID="HeadContent" runat="server">
 <style>
     .ticket-card { border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
-    .search-bar { border-radius: 8px 0 0 8px !important; border-right: none; }
+    .search-group { display: flex; width: 100%; }
+    .search-chips-wrapper { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; flex: 1; border: 1px solid #ced4da; border-radius: 8px 0 0 8px; padding: 4px 8px; background: #fff; min-height: 38px; border-right: none; cursor: text; }
+    .search-chips-wrapper:focus-within { border-color: #001f54; box-shadow: 0 0 0 3px rgba(0,31,84,0.1); }
+    .search-input-inner { flex: 1; border: none !important; outline: none !important; box-shadow: none !important; background: transparent !important; font-size: 13px; min-width: 120px; padding: 4px 0; }
     .btn-search { border-radius: 0 8px 8px 0 !important; background: #001f54; color: white; border: none; padding: 0 16px; }
     .btn-search:hover { background: #003087; }
     .filter-select { border-radius: 8px !important; font-size: 13px; }
@@ -64,6 +67,9 @@
     .filter-row .filter-date { width: 130px; flex-shrink: 0; }
     .filter-row .filter-search { flex: 1; min-width: 180px; }
     .filter-row .filter-export { flex-shrink: 0; margin-left: auto; }
+    .filter-chip { display: inline-flex; align-items: center; gap: 6px; background: #f0f4ff; border: 1px solid #001f54; border-radius: 20px; padding: 4px 10px 4px 12px; font-size: 12px; font-weight: 500; color: #001f54; white-space: nowrap; }
+    .filter-chip .chip-remove { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #001f54; color: #fff; font-size: 10px; cursor: pointer; border: none; padding: 0; line-height: 1; }
+    .filter-chip .chip-remove:hover { background: #dc3545; }
 </style>
 </asp:Content>
 
@@ -89,8 +95,7 @@
         <div class="card-body">
             <div class="filter-row mb-3">
                 <div class="filter-status">
-                    <asp:DropDownList ID="ddlFilterStatus" runat="server" CssClass="form-control filter-select" AutoPostBack="true" OnSelectedIndexChanged="ddlFilter_Changed">
-                        <asp:ListItem Value="">Ticket Status</asp:ListItem>
+                    <asp:DropDownList ID="ddlFilterStatus" runat="server" CssClass="form-control filter-select">
                         <asp:ListItem Value="">All Status</asp:ListItem>
                         <asp:ListItem Value="New">New</asp:ListItem>
                         <asp:ListItem Value="Assigned">Assigned</asp:ListItem>
@@ -100,17 +105,17 @@
                     </asp:DropDownList>
                 </div>
                 <div class="filter-date">
-                    <asp:TextBox ID="txtFromDate" runat="server" TextMode="Date" CssClass="form-control filter-select" placeholder="From" />
+                    <asp:TextBox ID="txtFromDate" runat="server" CssClass="form-control filter-select" placeholder="FROM" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'" />
                 </div>
                 <div class="filter-date">
-                    <asp:TextBox ID="txtToDate" runat="server" TextMode="Date" CssClass="form-control filter-select" placeholder="To" />
+                    <asp:TextBox ID="txtToDate" runat="server" CssClass="form-control filter-select" placeholder="TO" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'" />
                 </div>
                 <div class="filter-search">
-                    <div class="input-group">
-                        <asp:TextBox ID="txtSearch" runat="server" CssClass="form-control search-bar" placeholder="Search by ticket number or title..." />
-                        <div class="input-group-append">
-                            <asp:Button ID="btnSearch" runat="server" CssClass="btn-search" Text="Search" OnClick="btnSearch_Click" />
+                    <div class="search-group">
+                        <div id="filterChipsContainer" class="search-chips-wrapper">
+                            <asp:TextBox ID="txtSearch" runat="server" CssClass="search-input-inner" placeholder="Search by ticket number or title..." />
                         </div>
+                        <asp:Button ID="btnSearch" runat="server" CssClass="btn-search" Text="Search" OnClick="btnSearch_Click" />
                     </div>
                 </div>
                 <div class="filter-export">
@@ -131,11 +136,11 @@
                     <asp:Button ID="btnExportPDF" runat="server" Text="Export to PDF"
                         OnClick="btnExportPDF_Click" Style="display:none;" />
                     <asp:Button ID="btnExportExcel" runat="server" Text="Export to Excel"
-                        OnClick="btnExportExcel_Click" Style="display:none;" />
-                </div>
-            </div>
+                                OnClick="btnExportExcel_Click" Style="display:none;" />
+                            </div>
+                        </div>
 
-            <!-- Tickets Table -->
+                        <!-- Tickets Table -->
             <div class="table-responsive">
                 <asp:Repeater ID="rptTickets" runat="server" OnItemDataBound="rptTickets_ItemDataBound" OnItemCommand="rptTickets_ItemCommand">
                     <HeaderTemplate>
@@ -412,6 +417,21 @@
             auditPaginateAssigned();
         }
 
+        var ddlStatus = document.getElementById('<%= ddlFilterStatus.ClientID %>');
+        var inputFrom = document.getElementById('<%= txtFromDate.ClientID %>');
+        var inputTo = document.getElementById('<%= txtToDate.ClientID %>');
+        if (ddlStatus) ddlStatus.addEventListener('change', updateFilterChips);
+        if (inputFrom) inputFrom.addEventListener('change', updateFilterChips);
+        if (inputTo) inputTo.addEventListener('change', updateFilterChips);
+        updateFilterChips();
+
+        var chipsWrapper = document.getElementById('filterChipsContainer');
+        if (chipsWrapper) {
+            chipsWrapper.addEventListener('click', function (e) {
+                if (e.target === chipsWrapper) document.getElementById('<%= txtSearch.ClientID %>').focus();
+            });
+        }
+
     });
 
     var auditCurrentPage = 1;
@@ -449,6 +469,64 @@
         var rows = $('#auditTrailBodyAssigned tr.audit-trail-row');
         var totalPages = Math.ceil(rows.length / auditPageSize);
         if (auditCurrentPage < totalPages) { auditCurrentPage++; auditPaginateAssigned(); }
+    }
+
+    function updateFilterChips() {
+        var container = document.getElementById('filterChipsContainer');
+        if (!container) return;
+        var old = container.querySelectorAll('.filter-chip');
+        for (var i = 0; i < old.length; i++) old[i].parentNode.removeChild(old[i]);
+        var searchInput = document.getElementById('<%= txtSearch.ClientID %>');
+        var ddl = document.getElementById('<%= ddlFilterStatus.ClientID %>');
+        var inputFrom = document.getElementById('<%= txtFromDate.ClientID %>');
+        var inputTo = document.getElementById('<%= txtToDate.ClientID %>');
+        if (ddl && ddl.value !== '') {
+            container.insertBefore(createFilterChip('status', ddl.options[ddl.selectedIndex].text), searchInput);
+        }
+        if (inputFrom && inputFrom.value !== '') {
+            container.insertBefore(createFilterChip('from', 'From: ' + formatChipDate(inputFrom.value)), searchInput);
+        }
+        if (inputTo && inputTo.value !== '') {
+            container.insertBefore(createFilterChip('to', 'To: ' + formatChipDate(inputTo.value)), searchInput);
+        }
+    }
+
+    function createFilterChip(type, label) {
+        var chip = document.createElement('span');
+        chip.className = 'filter-chip';
+        chip.setAttribute('data-filter', type);
+        var text = document.createTextNode(label + ' ');
+        chip.appendChild(text);
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chip-remove';
+        btn.innerHTML = '&times;';
+        btn.onclick = function () { removeFilterChip(type); };
+        chip.appendChild(btn);
+        return chip;
+    }
+
+    function removeFilterChip(type) {
+        var ddl = document.getElementById('<%= ddlFilterStatus.ClientID %>');
+        var inputFrom = document.getElementById('<%= txtFromDate.ClientID %>');
+        var inputTo = document.getElementById('<%= txtToDate.ClientID %>');
+        if (type === 'status' && ddl) {
+            ddl.selectedIndex = 0;
+        } else if (type === 'from' && inputFrom) {
+            inputFrom.value = '';
+            inputFrom.type = 'text';
+        } else if (type === 'to' && inputTo) {
+            inputTo.value = '';
+            inputTo.type = 'text';
+        }
+        updateFilterChips();
+    }
+
+    function formatChipDate(dateStr) {
+        if (!dateStr) return '';
+        var parts = dateStr.split('-');
+        if (parts.length === 3) return parts[1] + '/' + parts[2] + '/' + parts[0];
+        return dateStr;
     }
     </script>
 </asp:Content>
