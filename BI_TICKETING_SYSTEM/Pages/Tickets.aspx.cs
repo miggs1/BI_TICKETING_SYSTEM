@@ -446,7 +446,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
             try
             {
-                string attachmentPath = SaveAttachment(fuAttachment);
+                var fileInfo = SaveAttachmentDetails(fuAttachment);
                 DateTime dueDate;
                 if (!string.IsNullOrWhiteSpace(txtDueDate.Text) &&
                     DateTime.TryParseExact(txtDueDate.Text, "yyyy-MM-dd",
@@ -496,37 +496,58 @@ namespace BI_TICKETING_SYSTEM.Pages
                     cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = DBNull.Value;
                     cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
                     cmd.Parameters.Add("dueDate", OracleDbType.Date).Value = dueDate;
-                    cmd.Parameters.Add("attachmentPath", OracleDbType.Varchar2).Value =
-                        string.IsNullOrEmpty(attachmentPath) ? (object)DBNull.Value : attachmentPath;
+                    cmd.Parameters.Add("attachmentPath", OracleDbType.Varchar2).Value = (object)fileInfo.fullPath ?? DBNull.Value; 
                     cmd.ExecuteNonQuery();
 
-                    var newSnap = GetTicketSnapshot((int)ticketId, conn);
-                    AuditHelper.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId, null, newSnap);
-
-                    InsertStatusRemark((int)ticketId, "New", conn);
-
-                    txtTitle.Text = "";
-                    txtDescription.Text = "";
-                    txtDueDate.Text = "";
-                    ddlCreatePriority.SelectedIndex = 0;
-
-                    if (dueDate <= DateTime.Now)
+                    if (fuAttachment.HasFile)
                     {
-                        ShowError("Due date must be in the future.");
-                        hfShowModal.Value = "create";
-                        return;
+                        string attachSql = @"INSERT INTO BI_OJT.ATTACHMENTS 
+                        (ATTACHMENT_ID, TICKET_ID, ORIGINAL_FILE_NAME, SAVED_FILE_NAME, 
+                         FILE_PATH, FILE_SIZE, FILE_TYPE, UPLOADED_BY, UPLOADED_AT) 
+                        VALUES (BI_OJT.ATTACHMENTS_SEQ.NEXTVAL, :ticketId, :origName, :savedName, 
+                                :path, :size, :type, :userId, SYSDATE)";
+
+                        using (OracleCommand attachCmd = new OracleCommand(attachSql, conn))
+                        {
+                            attachCmd.Parameters.Add("ticketId", OracleDbType.Decimal).Value = ticketId;
+                            attachCmd.Parameters.Add("origName", OracleDbType.Varchar2).Value = fileInfo.origName;
+                            attachCmd.Parameters.Add("savedName", OracleDbType.Varchar2).Value = fileInfo.savedName;
+                            attachCmd.Parameters.Add("fPath", OracleDbType.Varchar2).Value = fileInfo.fullPath; 
+                            attachCmd.Parameters.Add("size", OracleDbType.Int64).Value = fuAttachment.PostedFile.ContentLength;
+                            attachCmd.Parameters.Add("type", OracleDbType.Varchar2).Value = fuAttachment.PostedFile.ContentType;
+                            attachCmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+
+                            attachCmd.ExecuteNonQuery();
+                        }
+
+                        var newSnap = GetTicketSnapshot((int)ticketId, conn);
+                        AuditHelper.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId, null, newSnap);
+
+                        InsertStatusRemark((int)ticketId, "New", conn);
+
+                        txtTitle.Text = "";
+                        txtDescription.Text = "";
+                        txtDueDate.Text = "";
+                        ddlCreatePriority.SelectedIndex = 0;
+
+                        if (dueDate <= DateTime.Now)
+                        {
+                            ShowError("Due date must be in the future.");
+                            hfShowModal.Value = "create";
+                            return;
+                        }
+
+                        if (!IsPostBack)
+                        {
+                            txtDueDate.Text = DateTime.Now.AddDays(1).ToString("yyyy-MM-ddTHH:mm");
+                        }
+
+                        EmailHelper.SendEmail("angjandell24@gmail.com", $"New Ticket Submitted: {ticketNumber}", $"A new ticket has been submitted by {CurrentUserName}. <br/><b>Title:</b> {txtTitle.Text}");
+
+                        hfShowModal.Value = "";
+                        ShowSuccess($"Ticket {ticketNumber} submitted successfully!");
+                        LoadTickets();
                     }
-
-                    if (!IsPostBack)
-                    {
-                        txtDueDate.Text = DateTime.Now.AddDays(1).ToString("yyyy-MM-ddTHH:mm");
-                    }
-
-                    EmailHelper.SendEmail("angjandell24@gmail.com", $"New Ticket Submitted: {ticketNumber}", $"A new ticket has been submitted by {CurrentUserName}. <br/><b>Title:</b> {txtTitle.Text}");
-
-                    hfShowModal.Value = "";
-                    ShowSuccess($"Ticket {ticketNumber} submitted successfully!");
-                    LoadTickets();
                 }
             }
             catch (Exception ex)
@@ -1098,18 +1119,25 @@ namespace BI_TICKETING_SYSTEM.Pages
 
             return "";
         }
-        private string SaveAttachment(FileUpload fileUploadControl)
+        private (string origName, string savedName, string fullPath) SaveAttachmentDetails(FileUpload fu)
         {
-
-            if (fileUploadControl.HasFile)
+            if (fu.HasFile)
             {
-                string fileName = Guid.NewGuid().ToString().Substring(0, 8) + "_" + fileUploadControl.FileName;
-                string serverPath = Server.MapPath("~/Uploads/Tickets/");
-                System.IO.Directory.CreateDirectory(serverPath);
-                fileUploadControl.SaveAs(serverPath + fileName);
-                return "~/Uploads/Tickets/" + fileName;
+                string originalFileName = fu.FileName;
+                string extension = System.IO.Path.GetExtension(originalFileName);
+                // Requirement: GUID + original extension
+                string savedFileName = Guid.NewGuid().ToString() + extension;
+                string folderPath = Server.MapPath("~/Uploads/Tickets/");
+
+                if (!System.IO.Directory.Exists(folderPath))
+                    System.IO.Directory.CreateDirectory(folderPath);
+
+                string fullPath = folderPath + savedFileName;
+                fu.SaveAs(fullPath);
+
+                return (originalFileName, savedFileName, "~/Uploads/Tickets/" + savedFileName);
             }
-            return null;
+            return (null, null, null);
         }
 
 
