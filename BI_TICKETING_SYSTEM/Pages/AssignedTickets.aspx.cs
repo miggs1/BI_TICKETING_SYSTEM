@@ -197,6 +197,52 @@ namespace BI_TICKETING_SYSTEM.Pages
                         lblViewAssignedTo.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString();
                         lblViewPriority.Text = row["PRIORITY"] == DBNull.Value ? "N/A": System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(row["PRIORITY"]?.ToString().ToLower());
 
+                        try
+                        {
+                            string attachmentPath = row["ATTACHMENT_PATH"].ToString();
+                            if (!string.IsNullOrEmpty(attachmentPath))
+                            {
+                                string resolvedUrl = ResolveUrl(attachmentPath);
+                                string fileName = System.IO.Path.GetFileName(attachmentPath);
+                                if (fileName.Length > 9 && fileName[8] == '_')
+                                    fileName = fileName.Substring(9);
+                                string ext = System.IO.Path.GetExtension(attachmentPath).ToLower();
+                                bool isImage = ext == ".jpg" || ext == ".jpeg" || ext == ".png";
+
+                                lblAttachFileName.Text = fileName;
+                                lblAttachFileType.Text = ext.TrimStart('.').ToUpper();
+                                lblAttachUploadedBy.Text = row["CREATED_BY_NAME"].ToString();
+                                lblAttachUploadedAt.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
+                                hlAttachDownload.NavigateUrl = resolvedUrl;
+                                hlAttachDownload.Target = "_blank";
+
+                                if (isImage)
+                                {
+                                    imgAttachFullPreview.ImageUrl = resolvedUrl;
+                                    pnlAttachImagePreview.Visible = true;
+                                }
+                                else
+                                {
+                                    pnlAttachImagePreview.Visible = false;
+                                }
+
+                                pnlHasAttachment.Visible = true;
+                                pnlNoAttachmentMsg.Visible = false;
+                            }
+                            else
+                            {
+                                pnlHasAttachment.Visible = false;
+                                pnlNoAttachmentMsg.Visible = true;
+                                pnlAttachImagePreview.Visible = false;
+                            }
+                        }
+                        catch
+                        {
+                            pnlHasAttachment.Visible = false;
+                            pnlNoAttachmentMsg.Visible = true;
+                            pnlAttachImagePreview.Visible = false;
+                        }
+
                         hfViewTicketId.Value = ticketId.ToString();
 
                         LoadRemarks(ticketId);

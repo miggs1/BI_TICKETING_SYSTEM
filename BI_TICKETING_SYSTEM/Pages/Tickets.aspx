@@ -285,7 +285,7 @@
                     </div>
                     <div class="row mb-3">
                         <div class="col-12">
-                            <label class="form-label">Attach Screenshot (Optional)</label>
+                            <label class="form-label">Attach a File (Optional)</label>
                             <asp:FileUpload ID="fuAttachment" runat="server" CssClass="form-control" />
                         </div>
                     </div>
@@ -375,27 +375,16 @@
                     <div class="row mb-3">
                         <div class="col-12">
                             <label class="form-label">Attachment</label><br />
-                            <%-- Shown for image attachments: inline preview + open link --%>
-                            <asp:Panel ID="pnlAttachmentPreview" runat="server" Visible="false">
-                                <div style="margin-bottom:8px;">
-                                    <asp:Image ID="imgAttachmentPreview" runat="server"
-                                        style="max-width:100%; max-height:320px; border-radius:8px; border:1px solid #dee2e6; cursor:pointer;"
-                                        onclick="window.open(this.src,'_blank')"
-                                        title="Click to open full size" />
-                                </div>
-                                <asp:HyperLink ID="hlViewAttachment" runat="server" Target="_blank" CssClass="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-external-link-alt mr-1"></i> Open Full Size
-                                </asp:HyperLink>
+                            <asp:Panel ID="pnlHasAttachment" runat="server" Visible="false">
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="openAttachmentPreview()">
+                                    <i class="fas fa-paperclip mr-1"></i> View Attached File
+                                </button>
                             </asp:Panel>
-                            <%-- Shown for non-image attachments (PDF, etc.) --%>
-                            <asp:Panel ID="pnlAttachmentLink" runat="server" Visible="false">
-                                <asp:HyperLink ID="hlViewAttachmentFile" runat="server" Target="_blank" CssClass="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-paperclip mr-1"></i> View Attachment
-                                </asp:HyperLink>
+                            <asp:Panel ID="pnlNoAttachmentMsg" runat="server" Visible="false">
+                                <span class="text-muted" style="font-size:13px;">There is no attached file</span>
                             </asp:Panel>
-                            <asp:Label ID="lblNoAttachment" runat="server" Text="No Attachment Provided." CssClass="text-muted" Visible="false" />
                         </div>
-                    </div>                    
+                    </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Created By</label>
@@ -475,6 +464,56 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalAttachedPreview" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-paperclip mr-2"></i>Attached Preview</h5>
+                    <button type="button" class="close" onclick="closeAttachmentPreview()"><span>&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>File Name</th>
+                                    <th>File Type</th>
+                                    <th>Uploaded By</th>
+                                    <th>Uploaded At</th>
+                                    <th style="width:100px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><asp:Label ID="lblAttachFileName" runat="server" /></td>
+                                    <td><asp:Label ID="lblAttachFileType" runat="server" /></td>
+                                    <td><asp:Label ID="lblAttachUploadedBy" runat="server" /></td>
+                                    <td><asp:Label ID="lblAttachUploadedAt" runat="server" /></td>
+                                    <td>
+                                        <asp:HyperLink ID="hlAttachDownload" runat="server" CssClass="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-download mr-1"></i>Download
+                                        </asp:HyperLink>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <asp:Panel ID="pnlAttachImagePreview" runat="server" Visible="false">
+                        <label class="form-label mt-2">Image Preview</label>
+                        <div style="text-align:center; padding:10px; background:#f8f9fa; border-radius:8px;">
+                            <asp:Image ID="imgAttachFullPreview" runat="server"
+                                style="max-width:100%; max-height:400px; border-radius:8px; border:1px solid #dee2e6; cursor:pointer;"
+                                onclick="window.open(this.src,'_blank')" title="Click to open full size" />
+                        </div>
+                    </asp:Panel>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeAttachmentPreview()"><i class="fas fa-arrow-left mr-1"></i>Back</button>
                 </div>
             </div>
         </div>
@@ -574,7 +613,21 @@
             auditPaginate();
         }
 
+        if (modal === 'attachment') {
+            $('#modalAttachedPreview').modal('show');
+        }
+
     });
+
+    function openAttachmentPreview() {
+        $('#modalViewTicket').modal('hide');
+        setTimeout(function () { $('#modalAttachedPreview').modal('show'); }, 300);
+    }
+
+    function closeAttachmentPreview() {
+        $('#modalAttachedPreview').modal('hide');
+        setTimeout(function () { $('#modalViewTicket').modal('show'); }, 300);
+    }
 
     var auditCurrentPage = 1;
     var auditPageSize = 5;

@@ -285,58 +285,85 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.Label lblViewDescription;
 
         /// <summary>
-        /// pnlAttachmentPreview control.
+        /// pnlHasAttachment control.
         /// </summary>
         /// <remarks>
         /// Auto-generated field.
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
-        protected global::System.Web.UI.WebControls.Panel pnlAttachmentPreview;
+        protected global::System.Web.UI.WebControls.Panel pnlHasAttachment;
 
         /// <summary>
-        /// imgAttachmentPreview control.
+        /// pnlNoAttachmentMsg control.
         /// </summary>
         /// <remarks>
         /// Auto-generated field.
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
-        protected global::System.Web.UI.WebControls.Image imgAttachmentPreview;
+        protected global::System.Web.UI.WebControls.Panel pnlNoAttachmentMsg;
 
         /// <summary>
-        /// hlViewAttachment control.
+        /// lblAttachFileName control.
         /// </summary>
         /// <remarks>
         /// Auto-generated field.
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
-        protected global::System.Web.UI.WebControls.HyperLink hlViewAttachment;
+        protected global::System.Web.UI.WebControls.Label lblAttachFileName;
 
         /// <summary>
-        /// pnlAttachmentLink control.
+        /// lblAttachFileType control.
         /// </summary>
         /// <remarks>
         /// Auto-generated field.
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
-        protected global::System.Web.UI.WebControls.Panel pnlAttachmentLink;
+        protected global::System.Web.UI.WebControls.Label lblAttachFileType;
 
         /// <summary>
-        /// hlViewAttachmentFile control.
+        /// lblAttachUploadedBy control.
         /// </summary>
         /// <remarks>
         /// Auto-generated field.
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
-        protected global::System.Web.UI.WebControls.HyperLink hlViewAttachmentFile;
+        protected global::System.Web.UI.WebControls.Label lblAttachUploadedBy;
 
         /// <summary>
-        /// lblNoAttachment control.
+        /// lblAttachUploadedAt control.
         /// </summary>
         /// <remarks>
         /// Auto-generated field.
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
-        protected global::System.Web.UI.WebControls.Label lblNoAttachment;
+        protected global::System.Web.UI.WebControls.Label lblAttachUploadedAt;
+
+        /// <summary>
+        /// hlAttachDownload control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.HyperLink hlAttachDownload;
+
+        /// <summary>
+        /// pnlAttachImagePreview control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Panel pnlAttachImagePreview;
+
+        /// <summary>
+        /// imgAttachFullPreview control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Image imgAttachFullPreview;
 
         /// <summary>
         /// lblViewCreatedBy control.

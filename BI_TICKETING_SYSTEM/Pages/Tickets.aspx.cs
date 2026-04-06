@@ -594,49 +594,53 @@ namespace BI_TICKETING_SYSTEM.Pages
                             ? "Not Set"
                             : Convert.ToDateTime(row["DUE_DATE"]).ToString("MM/dd/yyyy");
 
-                        // Attachment preview
                         try
                         {
                             string attachmentPath = row["ATTACHMENT_PATH"].ToString();
                             if (!string.IsNullOrEmpty(attachmentPath))
                             {
                                 string resolvedUrl = ResolveUrl(attachmentPath);
+                                string fileName = System.IO.Path.GetFileName(attachmentPath);
+                                if (fileName.Length > 9 && fileName[8] == '_')
+                                    fileName = fileName.Substring(9);
                                 string ext = System.IO.Path.GetExtension(attachmentPath).ToLower();
                                 bool isImage = ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".bmp" || ext == ".webp";
 
+                                lblAttachFileName.Text = fileName;
+                                lblAttachFileType.Text = ext.TrimStart('.').ToUpper();
+                                lblAttachUploadedBy.Text = row["CREATED_BY_NAME"].ToString();
+                                lblAttachUploadedAt.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
+                                hlAttachDownload.NavigateUrl = resolvedUrl;
+                                hlAttachDownload.Target = "_blank";
+
                                 if (isImage)
                                 {
-                                    imgAttachmentPreview.ImageUrl = resolvedUrl;
-                                    hlViewAttachment.NavigateUrl = resolvedUrl;
-                                    pnlAttachmentPreview.Visible = true;
-                                    pnlAttachmentLink.Visible = false;
+                                    imgAttachFullPreview.ImageUrl = resolvedUrl;
+                                    pnlAttachImagePreview.Visible = true;
                                 }
                                 else
                                 {
-                                    hlViewAttachmentFile.NavigateUrl = resolvedUrl;
-                                    pnlAttachmentLink.Visible = true;
-                                    pnlAttachmentPreview.Visible = false;
+                                    pnlAttachImagePreview.Visible = false;
                                 }
-                                lblNoAttachment.Visible = false;
+
+                                pnlHasAttachment.Visible = true;
+                                pnlNoAttachmentMsg.Visible = false;
                             }
                             else
                             {
-                                pnlAttachmentPreview.Visible = false;
-                                pnlAttachmentLink.Visible = false;
-                                lblNoAttachment.Visible = true;
+                                pnlHasAttachment.Visible = false;
+                                pnlNoAttachmentMsg.Visible = true;
+                                pnlAttachImagePreview.Visible = false;
                             }
                         }
                         catch
                         {
-                            pnlAttachmentPreview.Visible = false;
-                            pnlAttachmentLink.Visible = false;
-                            lblNoAttachment.Visible = true;
+                            pnlHasAttachment.Visible = false;
+                            pnlNoAttachmentMsg.Visible = true;
+                            pnlAttachImagePreview.Visible = false;
                         }
 
                         hfShowModal.Value = "view";
-                        // Temporary debug - remove after confirming
-                        lblViewTitle.Text += " [PATH:" + row["ATTACHMENT_PATH"].ToString() + "]";
-
 
                         LoadTicketRemarks(ticketId, conn);
 
