@@ -212,12 +212,18 @@ namespace BI_TICKETING_SYSTEM.Pages
                 else if (tableName == "ATTACHMENTS" || action == "UPLOAD_ATTACHMENT")
                 {
                     JObject newObj = TryParseJson(newJson);
-                    string fileName = newObj?["ORIGINAL_FILE+NAME"]?.ToString();
+                    string fileName = newObj?["ORIGINAL_FILE_NAME"]?.ToString();
 
                     if (string.IsNullOrWhiteSpace(fileName))
                         fileName = "Unknown File";
 
-                    AddLogEntry(dtDisplay, row, $"Attachment uploaded: {fileName}");
+                    string ticketNumber = (ticketId.HasValue && ticketMap.TryGetValue(ticketId.Value, out var t)) 
+                        ? t 
+                        : $"#{ticketId}";
+
+                    string fullName = Convert.ToString(row["FULL_NAME"]);
+
+                    AddLogEntry(dtDisplay, row, $"{fullName} uploaded: {fileName} on Ticket {ticketNumber}");
                 }
             }
 

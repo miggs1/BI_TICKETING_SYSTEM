@@ -568,12 +568,18 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                             if (fuAttachment.HasFile)
                             {
-                                string folderPath = Server.MapPath("~/Uploads/Tickets/");
-                                if (!System.IO.Directory.Exists(folderPath))
-                                    System.IO.Directory.CreateDirectory(folderPath);
+                                var attachmentSnap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+                                {
+                                    ["TICKET_ID"] = (int)ticketId,
+                                    ["ORIGINAL_FILE_NAME"] = originalFileName,
+                                    ["SAVED_FILE_NAME"] = savedFileName,
+                                    ["FILE_PATH"] = relativePath,
+                                    ["FILE_SIZE"] = fuAttachment.PostedFile.ContentLength,
+                                    ["FILE_TYPE"] = fuAttachment.PostedFile.ContentType,
+                                    ["UPLOADED_BY"] = CurrentUserID,
+                                };
 
-                                string fullPath = System.IO.Path.Combine(folderPath, savedFileName);
-                                fuAttachment.SaveAs(fullPath);
+                                AuditHelper.LogAction(CurrentUserID, "UPLOAD_ATTACHMENT", "ATTACHMENTS", (int)ticketId, null, attachmentSnap);
                             }
 
                             
