@@ -518,6 +518,23 @@ namespace BI_TICKETING_SYSTEM.Pages
                             attachCmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
 
                             attachCmd.ExecuteNonQuery();
+
+                            var attachmentSnap = new Dictionary<string, object>
+                            {
+                                { "ORIGINAL_FILE_NAME", fileInfo.origName },
+                                { "SAVED_FILE-NAME", fileInfo.savedName },
+                                { "FILE_PATH", fileInfo.fullPath },
+                                { "UPLOADED_BY", CurrentUserID }
+                            };
+
+                            AuditHelper.LogAction(
+                                CurrentUserID,
+                                "UPLOAD_ATTACHMENT",
+                                "ATTACHMENTS",
+                                (int)ticketId,
+                                null,
+                                attachmentSnap
+                                );
                         }
 
                         var newSnap = GetTicketSnapshot((int)ticketId, conn);

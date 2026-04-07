@@ -1,11 +1,14 @@
-﻿using BI_TICKETING_SYSTEM.Helpers;
-using Oracle.ManagedDataAccess.Client;
+﻿using Antlr.Runtime.Misc;
+using BI_TICKETING_SYSTEM.Helpers;
+using Microsoft.Ajax.Utilities;
 using Newtonsoft.Json.Linq;
+using Oracle.ManagedDataAccess.Client;
 using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Web.UI.WebControls;
 using System.Configuration;
+using System.Data;
+using System.Web.DynamicData;
+using System.Web.UI.WebControls;
 
 
 namespace BI_TICKETING_SYSTEM.Pages
@@ -99,6 +102,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                     new OracleDataAdapter(cmd).Fill(dtRaw);
                 }
             }
+
 
             // 2. Build Maps
             var ticketIds = new HashSet<int>();
@@ -205,10 +209,15 @@ namespace BI_TICKETING_SYSTEM.Pages
                         }
                     }
                 }
-                else
+                else if (tableName == "ATTACHMENTS" || action == "UPLOAD_ATTACHMENT")
                 {
-                    // Non-ticket actions (Login, etc.)
-                    AddLogEntry(dtDisplay, row, $"{row["FULL_NAME"]} performed {action.Replace("_", " ")}");
+                    JObject newObj = TryParseJson(newJson);
+                    string fileName = newObj?["ORIGINAL_FILE+NAME"]?.ToString();
+
+                    if (string.IsNullOrWhiteSpace(fileName))
+                        fileName = "Unknown File";
+
+                    AddLogEntry(dtDisplay, row, $"Attachment uploaded: {fileName}");
                 }
             }
 
