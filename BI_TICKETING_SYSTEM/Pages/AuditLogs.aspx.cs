@@ -148,6 +148,24 @@ namespace BI_TICKETING_SYSTEM.Pages
                     else
                     {
 
+                        // TITLE CHANGE
+                        string oldTitle = oldObj?["TITLE"]?.ToString();
+                        string newTitle = newObj?["TITLE"]?.ToString();
+                        if (oldTitle != newTitle)
+                        {
+                            AddLogEntry(dtDisplay, row, $"Ticket {ticketNumber}: Title changed");
+                            splitOccurred = true;
+                        }
+
+                        // DESCRIPTION CHANGE
+                        string oldDesc = oldObj?["DESCRIPTION"]?.ToString();
+                        string newDesc = newObj?["DESCRIPTION"]?.ToString();
+                        if (oldDesc != newDesc)
+                        {
+                            AddLogEntry(dtDisplay, row, $"Ticket {ticketNumber}: Description changed");
+                            splitOccurred = true;
+                        }
+
                         // STATUS CHANGE
                         string oldStatus = oldObj?["STATUS"]?.ToString();
                         string newStatus = newObj?["STATUS"]?.ToString();
@@ -180,7 +198,8 @@ namespace BI_TICKETING_SYSTEM.Pages
                         {
                             string remarkSnippet = newObj?["REMARK_TEXT"]?.ToString();
 
-                            if (remarkSnippet?.Length > 40) remarkSnippet = remarkSnippet.Substring(0, 37) + "...";
+                            if (remarkSnippet?.Length > 40)
+                                remarkSnippet = remarkSnippet.Substring(0, 37) + "...";
 
                             AddLogEntry(dtDisplay, row, $"Ticket {ticketNumber}: Remark added - \"{remarkSnippet}\"");
                         }

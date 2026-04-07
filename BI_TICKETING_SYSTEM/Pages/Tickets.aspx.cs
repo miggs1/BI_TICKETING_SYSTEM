@@ -735,25 +735,163 @@ namespace BI_TICKETING_SYSTEM.Pages
         {
             try
             {
-                string sql = @"SELECT TR.REMARK_TEXT, TR.CREATED_AT, U.FULL_NAME, U.ROLE
-                               FROM BI_OJT.TICKET_REMARKS TR
-                               LEFT JOIN BI_OJT.USERS U ON TR.USER_ID = U.USER_ID
-                               WHERE TR.TICKET_ID = :ticketId
-                               ORDER BY TR.CREATED_AT ASC";
+                DataTable dtFinal = new DataTable();
+                dtFinal.Columns.Add("DATE_DISPLAY", typeof(string));
+                dtFinal.Columns.Add("CHANGED_BY", typeof(string));
+                dtFinal.Columns.Add("ENTRY_TYPE", typeof(string));
+                dtFinal.Columns.Add("DETAILS", typeof(string));
+                dtFinal.Columns.Add("USER_ROLE", typeof(string));
+                dtFinal.Columns.Add("SORT_DATE", typeof(DateTime));
 
-                OracleCommand cmd = new OracleCommand(sql, conn);
-                cmd.BindByName = true;
-                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                
+                string remarksSql = @"
+            SELECT TR.REMARK_TEXT, TR.CREATED_AT, U.FULL_NAME, U.ROLE
+            FROM BI_OJT.TICKET_REMARKS TR
+            LEFT JOIN BI_OJT.USERS U ON TR.USER_ID = U.USER_ID
+            WHERE TR.TICKET_ID = :ticketId
+            ORDER BY TR.CREATED_AT ASC";
 
-                OracleDataAdapter da = new OracleDataAdapter(cmd);
-                DataTable dtRaw = new DataTable();
-                da.Fill(dtRaw);
-
-                DataTable dtRemarks = BuildAuditTrailTable(dtRaw);
-
-                if (dtRemarks.Rows.Count > 0)
+                using (OracleCommand cmdRemarks = new OracleCommand(remarksSql, conn))
                 {
-                    rptRemarks.DataSource = dtRemarks;
+                    cmdRemarks.BindByName = true;
+                    cmdRemarks.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                    OracleDataAdapter daRemarks = new OracleDataAdapter(cmdRemarks);
+                    DataTable dtRawRemarks = new DataTable();
+                    daRemarks.Fill(dtRawRemarks);
+
+                    foreach (DataRow rawRow in dtRawRemarks.Rows)
+                    {
+                        string remarkText = rawRow["REMARK_TEXT"].ToString();
+                        string fullName = rawRow["FULL_NAME"] != DBNull.Value ? rawRow["FULL_NAME"].ToString() : "";
+                        string role = rawRow["ROLE"] != DBNull.Value ? rawRow["ROLE"].ToString() : "";
+                        DateTime createdAt = Convert.ToDateTime(rawRow["CREATED_AT"]);
+                        string dateDisplay = createdAt.ToString("MM/dd/yyyy h:mm tt");
+
+                        string entryType;
+                        string details;
+
+                        if (remarkText == "Ticket Status: New")
+                        {
+                            entryType = "Status Change";
+                            details = "Created a new ticket";
+                        }
+                        else if (remarkText.StartsWith("Ticket Status: Assigned to "))
+                        {
+                            entryType = "Status Change";
+                            string assignedName = remarkText.Substring("Ticket Status: Assigned to ".Length);
+                            details = fullName + " assigned ticket to " + assignedName;
+                        }
+                        else if (remarkText.StartsWith("Ticket Status: "))
+                        {
+                            entryType = "Status Change";
+                            details = remarkText;
+                        }
+                        else
+                        {
+                            entryType = "Remarks";
+                            details = remarkText;
+                        }
+
+                        dtFinal.Rows.Add(dateDisplay, fullName, entryType, details, role.ToLower(), createdAt);
+                    }
+                }
+
+                
+                string auditSql = @"
+            SELECT U.FULL_NAME, U.ROLE, A.ACTION, A.OLD_VALUE, A.NEW_VALUE, A.CREATED_AT
+            FROM BI_OJT.AUDIT_LOGS A
+            LEFT JOIN BI_OJT.USERS U ON A.USER_ID = U.USER_ID
+            WHERE A.TABLE_NAME = 'TICKETS'
+              AND A.TICKET_ID = :ticketId
+            ORDER BY A.CREATED_AT ASC";
+
+                using (OracleCommand cmdAudit = new OracleCommand(auditSql, conn))
+                {
+                    cmdAudit.BindByName = true;
+                    cmdAudit.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                    OracleDataAdapter daAudit = new OracleDataAdapter(cmdAudit);
+                    DataTable dtAudit = new DataTable();
+                    daAudit.Fill(dtAudit);
+
+                    foreach (DataRow row in dtAudit.Rows)
+                    {
+                        string fullName = row["FULL_NAME"] != DBNull.Value ? row["FULL_NAME"].ToString() : "";
+                        string role = row["ROLE"] != DBNull.Value ? row["ROLE"].ToString() : "";
+                        string action = row["ACTION"] != DBNull.Value ? row["ACTION"].ToString() : "";
+                        DateTime createdAt = Convert.ToDateTime(row["CREATED_AT"]);
+                        string dateDisplay = createdAt.ToString("MM/dd/yyyy h:mm tt");
+
+                        var oldObj = TryParseJsonForTicketAudit(row["OLD_VALUE"]?.ToString());
+                        var newObj = TryParseJsonForTicketAudit(row["NEW_VALUE"]?.ToString());
+
+                        if (action == "EDIT_TICKET")
+                        {
+                            string oldTitle = oldObj?["TITLE"]?.ToString();
+                            string newTitle = newObj?["TITLE"]?.ToString();
+
+                            string oldDesc = oldObj?["DESCRIPTION"]?.ToString();
+                            string newDesc = newObj?["DESCRIPTION"]?.ToString();
+
+                            if (oldTitle != newTitle)
+                            {
+                                dtFinal.Rows.Add(dateDisplay, fullName, "Edit", "Title changed", role.ToLower(), createdAt);
+                            }
+
+                            if (oldDesc != newDesc)
+                            {
+                                dtFinal.Rows.Add(dateDisplay, fullName, "Edit", "Description changed", role.ToLower(), createdAt);
+                            }
+                        }
+
+                        if (action == "UPDATE_PRIORITY")
+                        {
+                            string oldPri = oldObj?["PRIORITY"]?.ToString();
+                            string newPri = newObj?["PRIORITY"]?.ToString();
+
+                            if (oldPri != newPri)
+                            {
+                                dtFinal.Rows.Add(
+                                    dateDisplay,
+                                    fullName,
+                                    "Priority Change",
+                                    $"Priority changed from {oldPri ?? "-"} to {newPri ?? "-"}",
+                                    role.ToLower(),
+                                    createdAt
+                                );
+                            }
+                        }
+
+                        if (action == "UPDATE_ASSIGNMENT")
+                        {
+                            string oldAssigned = oldObj?["ASSIGNED_TO_USER_ID"]?.ToString();
+                            string newAssigned = newObj?["ASSIGNED_TO_USER_ID"]?.ToString();
+
+                            if (oldAssigned != newAssigned)
+                            {
+                                dtFinal.Rows.Add(
+                                    dateDisplay,
+                                    fullName,
+                                    "Assignment Change",
+                                    "Assignment updated",
+                                    role.ToLower(),
+                                    createdAt
+                                );
+                            }
+                        }
+                    }
+                }
+
+                DataView dv = dtFinal.DefaultView;
+                dv.Sort = "SORT_DATE ASC";
+
+                DataTable dtBind = dv.ToTable();
+                dtBind.Columns.Remove("SORT_DATE");
+
+                if (dtBind.Rows.Count > 0)
+                {
+                    rptRemarks.DataSource = dtBind;
                     rptRemarks.DataBind();
                     pnlNoRemarks.Visible = false;
                 }
@@ -764,14 +902,33 @@ namespace BI_TICKETING_SYSTEM.Pages
                     pnlNoRemarks.Visible = true;
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                ShowError("Error loading audit trail: " + ex.Message);
                 pnlNoRemarks.Visible = true;
                 rptRemarks.DataSource = null;
                 rptRemarks.DataBind();
             }
         }
 
+        private Newtonsoft.Json.Linq.JObject TryParseJsonForTicketAudit(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return null;
+
+            json = json.Trim();
+            if (!json.StartsWith("{"))
+                return null;
+
+            try
+            {
+                return Newtonsoft.Json.Linq.JObject.Parse(json);
+            }
+            catch
+            {
+                return null;
+            }
+        }
         private DataTable BuildAuditTrailTable(DataTable dtRaw)
         {
             DataTable dt = new DataTable();
@@ -1063,22 +1220,27 @@ namespace BI_TICKETING_SYSTEM.Pages
 
         private Dictionary<string, object> GetTicketSnapshot(int ticketId, OracleConnection conn)
         {
-            string sql = @"SELECT STATUS, CREATED_BY_USER_ID, ASSIGNED_TO_USER_ID, PRIORITY
-                           FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+            string sql = @"SELECT TITLE, DESCRIPTION, STATUS, CREATED_BY_USER_ID, ASSIGNED_TO_USER_ID, PRIORITY
+                   FROM BI_OJT.TICKETS
+                   WHERE TICKET_ID = :ticketId";
 
             using (var cmd = new OracleCommand(sql, conn))
             {
                 cmd.BindByName = true;
                 cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
                 using (var reader = cmd.ExecuteReader())
                 {
                     if (!reader.Read()) return null;
 
                     var snap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                    snap["TITLE"] = reader["TITLE"] == DBNull.Value ? null : reader["TITLE"].ToString();
+                    snap["DESCRIPTION"] = reader["DESCRIPTION"] == DBNull.Value ? null : reader["DESCRIPTION"].ToString();
                     snap["STATUS"] = reader["STATUS"] == DBNull.Value ? null : reader["STATUS"].ToString();
                     snap["CREATED_BY_USER_ID"] = reader["CREATED_BY_USER_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["CREATED_BY_USER_ID"]);
                     snap["ASSIGNED_TO_USER_ID"] = reader["ASSIGNED_TO_USER_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["ASSIGNED_TO_USER_ID"]);
                     snap["PRIORITY"] = reader["PRIORITY"] == DBNull.Value ? null : reader["PRIORITY"].ToString();
+
                     return snap;
                 }
             }
