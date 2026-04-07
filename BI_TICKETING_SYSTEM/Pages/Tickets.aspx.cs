@@ -439,141 +439,173 @@ namespace BI_TICKETING_SYSTEM.Pages
                 LoadTickets();
             }
         }
-
         protected void btnCreateTicket_Click(object sender, EventArgs e)
         {
             if (!Page.IsValid) return;
 
             try
             {
-                var fileInfo = SaveAttachmentDetails(fuAttachment);
                 DateTime dueDate;
+
+                
                 if (!string.IsNullOrWhiteSpace(txtDueDate.Text) &&
                     DateTime.TryParseExact(txtDueDate.Text, "yyyy-MM-dd",
                         System.Globalization.CultureInfo.InvariantCulture,
                         System.Globalization.DateTimeStyles.None, out dueDate))
                 {
-                    // User provided or JS auto-filled a date — use it
                 }
                 else
                 {
-                    // Fallback: compute from priority
                     int slaHours = GetSlaHoursByPriority(ddlCreatePriority.SelectedValue);
                     dueDate = CalculateSlaWorkingHours(DateTime.Now, slaHours);
+                }
+
+                
+                if (dueDate <= DateTime.Now)
+                {
+                    ShowError("Due date must be in the future.");
+                    hfShowModal.Value = "create";
+                    return;
+                }
+
+                
+                string savedFileName = null;
+                string relativePath = null;
+                string originalFileName = null;
+
+                if (fuAttachment.HasFile)
+                {
+                    originalFileName = fuAttachment.FileName;
+                    string ext = System.IO.Path.GetExtension(originalFileName);
+                    savedFileName = Guid.NewGuid().ToString() + ext;
+                    relativePath = "~/Uploads/Tickets/" + savedFileName;
                 }
 
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
 
-                    string year = DateTime.Now.Year.ToString();
-                    OracleCommand seqCmd = new OracleCommand("SELECT BI_OJT.TICKETS_NUM_SEQ.NEXTVAL FROM DUAL", conn);
-                    seqCmd.BindByName = true;
-                    decimal nextNum = Convert.ToDecimal(seqCmd.ExecuteScalar());
-                    string ticketNumber = $"TKT-{year}-{((int)nextNum).ToString("D4")}";
+                    using (OracleTransaction txn = conn.BeginTransaction())
+                    {
+                        try
+                        {
+                            
+                            string year = DateTime.Now.Year.ToString();
 
-                    OracleCommand idCmd = new OracleCommand("SELECT BI_OJT.TICKETS_SEQ.NEXTVAL FROM DUAL", conn);
-                    idCmd.BindByName = true;
-                    decimal ticketId = Convert.ToDecimal(idCmd.ExecuteScalar());
+                            OracleCommand seqCmd = new OracleCommand(
+                                "SELECT BI_OJT.TICKETS_NUM_SEQ.NEXTVAL FROM DUAL", conn);
+                            seqCmd.Transaction = txn;
+                            seqCmd.BindByName = true;
+                            decimal nextNum = Convert.ToDecimal(seqCmd.ExecuteScalar());
 
-                    string selectedPriority = ddlCreatePriority.SelectedValue;
+                            string ticketNumber = $"TKT-{year}-{((int)nextNum).ToString("D4")}";
 
-                    string sql = @"INSERT INTO BI_OJT.TICKETS 
+                            
+                            OracleCommand idCmd = new OracleCommand(
+                                "SELECT BI_OJT.TICKETS_SEQ.NEXTVAL FROM DUAL", conn);
+                            idCmd.Transaction = txn;
+                            idCmd.BindByName = true;
+                            decimal ticketId = Convert.ToDecimal(idCmd.ExecuteScalar());
+                            
+                            string sql = @"INSERT INTO BI_OJT.TICKETS 
                     (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, PRIORITY,
                      ASSIGNED_TO_USER_ID, CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT, DUE_DATE, ATTACHMENT_PATH)
                     VALUES 
                     (:ticketId, :ticketNumber, :title, :description, :status, :priority,
                      :assignedTo, :createdBy, SYSDATE, SYSDATE, :dueDate, :attachmentPath)";
 
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.BindByName = true;
-                    cmd.Parameters.Add("ticketId", OracleDbType.Decimal).Value = ticketId;
-                    cmd.Parameters.Add("ticketNumber", OracleDbType.Varchar2).Value = ticketNumber;
-                    cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtTitle.Text.Trim();
-                    cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtDescription.Text.Trim();
-                    cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = "New";
-                    cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value = selectedPriority;
-                    cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = DBNull.Value;
-                    cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
-                    cmd.Parameters.Add("dueDate", OracleDbType.Date).Value = dueDate;
-                    cmd.Parameters.Add("attachmentPath", OracleDbType.Varchar2).Value = (object)fileInfo.fullPath ?? DBNull.Value; 
-                    cmd.ExecuteNonQuery();
+                            OracleCommand cmd = new OracleCommand(sql, conn);
+                            cmd.Transaction = txn;
+                            cmd.BindByName = true;
 
-                    if (fuAttachment.HasFile)
-                    {
-                        string attachSql = @"INSERT INTO BI_OJT.ATTACHMENTS 
+                            cmd.Parameters.Add("ticketId", OracleDbType.Decimal).Value = ticketId;
+                            cmd.Parameters.Add("ticketNumber", OracleDbType.Varchar2).Value = ticketNumber;
+                            cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtTitle.Text.Trim();
+                            cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtDescription.Text.Trim();
+                            cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = "New";
+                            cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value = ddlCreatePriority.SelectedValue;
+                            cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = DBNull.Value;
+                            cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
+                            cmd.Parameters.Add("dueDate", OracleDbType.Date).Value = dueDate;
+                            cmd.Parameters.Add("attachmentPath", OracleDbType.Varchar2)
+                                .Value = (object)relativePath ?? DBNull.Value;
+
+                            cmd.ExecuteNonQuery();
+
+                            
+                            if (fuAttachment.HasFile)
+                            {
+                                string attachSql = @"INSERT INTO BI_OJT.ATTACHMENTS 
                         (ATTACHMENT_ID, TICKET_ID, ORIGINAL_FILE_NAME, SAVED_FILE_NAME, 
                          FILE_PATH, FILE_SIZE, FILE_TYPE, UPLOADED_BY, UPLOADED_AT) 
                         VALUES (BI_OJT.ATTACHMENTS_SEQ.NEXTVAL, :ticketId, :origName, :savedName, 
-                                :path, :size, :type, :userId, SYSDATE)";
+                                :path, :fileSize, :fileType, :userId, SYSDATE)";
 
-                        using (OracleCommand attachCmd = new OracleCommand(attachSql, conn))
-                        {
-                            attachCmd.Parameters.Add("ticketId", OracleDbType.Decimal).Value = ticketId;
-                            attachCmd.Parameters.Add("origName", OracleDbType.Varchar2).Value = fileInfo.origName;
-                            attachCmd.Parameters.Add("savedName", OracleDbType.Varchar2).Value = fileInfo.savedName;
-                            attachCmd.Parameters.Add("fPath", OracleDbType.Varchar2).Value = fileInfo.fullPath; 
-                            attachCmd.Parameters.Add("size", OracleDbType.Int64).Value = fuAttachment.PostedFile.ContentLength;
-                            attachCmd.Parameters.Add("type", OracleDbType.Varchar2).Value = fuAttachment.PostedFile.ContentType;
-                            attachCmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+                                OracleCommand attachCmd = new OracleCommand(attachSql, conn);
+                                attachCmd.Transaction = txn;
+                                attachCmd.BindByName = true;
+
+                                attachCmd.Parameters.Add("ticketId", OracleDbType.Decimal).Value = ticketId;
+                                attachCmd.Parameters.Add("origName", OracleDbType.Varchar2).Value = originalFileName;
+                                attachCmd.Parameters.Add("savedName", OracleDbType.Varchar2).Value = savedFileName;
+                                attachCmd.Parameters.Add("path", OracleDbType.Varchar2).Value = relativePath;
+                                attachCmd.Parameters.Add("fileSize", OracleDbType.Int32).Value = fuAttachment.PostedFile.ContentLength; // ✅ FIXED
+                                attachCmd.Parameters.Add("fileType", OracleDbType.Varchar2).Value = fuAttachment.PostedFile.ContentType;
+                                attachCmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
 
                             attachCmd.ExecuteNonQuery();
+                        }
 
-                            var attachmentSnap = new Dictionary<string, object>
+                            
+                            var newSnap = GetTicketSnapshot((int)ticketId, conn);
+
+                            InsertStatusRemark((int)ticketId, "New", conn);
+
+                            
+                            txn.Commit();
+                            AuditHelper.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId, null, newSnap);
+
+
+                            if (fuAttachment.HasFile)
                             {
-                                { "ORIGINAL_FILE_NAME", fileInfo.origName },
-                                { "SAVED_FILE-NAME", fileInfo.savedName },
-                                { "FILE_PATH", fileInfo.fullPath },
-                                { "UPLOADED_BY", CurrentUserID }
-                            };
+                                string folderPath = Server.MapPath("~/Uploads/Tickets/");
+                                if (!System.IO.Directory.Exists(folderPath))
+                                    System.IO.Directory.CreateDirectory(folderPath);
 
-                            AuditHelper.LogAction(
-                                CurrentUserID,
-                                "UPLOAD_ATTACHMENT",
-                                "ATTACHMENTS",
-                                (int)ticketId,
-                                null,
-                                attachmentSnap
-                                );
+                                string fullPath = System.IO.Path.Combine(folderPath, savedFileName);
+                                fuAttachment.SaveAs(fullPath);
+                            }
+
+                            
+                            txtTitle.Text = "";
+                            txtDescription.Text = "";
+                            txtDueDate.Text = "";
+                            ddlCreatePriority.SelectedIndex = 0;
+
+                            
+                            //EmailHelper.SendEmail(
+                            //    "angjandell24@gmail.com",
+                            //    $"New Ticket Submitted: {ticketNumber}",
+                            //    $"A new ticket has been submitted by {CurrentUserName}. <br/><b>Title:</b> {txtTitle.Text}"
+                            //);
+
+                            ShowSuccess($"Ticket {ticketNumber} submitted successfully!");
+                            Response.Redirect(Request.RawUrl);
                         }
-
-                        var newSnap = GetTicketSnapshot((int)ticketId, conn);
-                        AuditHelper.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId, null, newSnap);
-
-                        InsertStatusRemark((int)ticketId, "New", conn);
-
-                        txtTitle.Text = "";
-                        txtDescription.Text = "";
-                        txtDueDate.Text = "";
-                        ddlCreatePriority.SelectedIndex = 0;
-
-                        if (dueDate <= DateTime.Now)
+                        catch (Exception)
                         {
-                            ShowError("Due date must be in the future.");
-                            hfShowModal.Value = "create";
-                            return;
+                            txn.Rollback();
+                            throw;
                         }
-
-                        if (!IsPostBack)
-                        {
-                            txtDueDate.Text = DateTime.Now.AddDays(1).ToString("yyyy-MM-ddTHH:mm");
-                        }
-
-                        EmailHelper.SendEmail("angjandell24@gmail.com", $"New Ticket Submitted: {ticketNumber}", $"A new ticket has been submitted by {CurrentUserName}. <br/><b>Title:</b> {txtTitle.Text}");
-
-                        hfShowModal.Value = "";
-                        ShowSuccess($"Ticket {ticketNumber} submitted successfully!");
-                        LoadTickets();
                     }
                 }
             }
             catch (Exception ex)
             {
                 hfShowModal.Value = "create";
-                ShowError("Error creating ticket: " + ex.Message);
+                ShowError("FULL ERROR: " + ex.ToString());
             }
         }
-
         protected void rptTickets_ItemCommand(object source, RepeaterCommandEventArgs e)
         {
             int ticketId = Convert.ToInt32(e.CommandArgument);
@@ -591,6 +623,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                     break;
             }
         }
+
 
         private void LoadTicketForView(int ticketId)
         {
@@ -938,6 +971,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     using (var delRemarks = new OracleCommand("DELETE FROM BI_OJT.TICKET_REMARKS WHERE TICKET_ID = :ticketId", conn))
                     {
+                        delRemarks.BindByName = true;
                         delRemarks.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                         delRemarks.ExecuteNonQuery();
                     }
@@ -954,9 +988,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                         cmd.ExecuteNonQuery();
                     }
 
-                    AuditHelper.Log(CurrentUserID, "DELETE_TICKET", oldJson, null);
+                    AuditHelper.LogAction(CurrentUserID, "DELETE_TICKET", "TICKETS", ticketId, oldSnap, null);
                     ShowSuccess("Ticket deleted successfully.");
-                    LoadTickets();
+                    Response.Redirect(Request.RawUrl);
                 }
             }
             catch (Exception ex)
