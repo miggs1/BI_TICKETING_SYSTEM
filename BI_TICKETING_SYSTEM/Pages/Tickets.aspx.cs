@@ -943,10 +943,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                 {
                     conn.Open();
 
-                    string checkSql = @"SELECT CREATED_BY_USER_ID, U.ROLE AS CREATED_BY_ROLE
+                    string checkSql = @"SELECT T.TICKET_NUMBER, T.CREATED_BY_USER_ID
                                         FROM BI_OJT.TICKETS T
-                                        LEFT JOIN BI_OJT.USERS U ON T.CREATED_BY_USER_ID = U.USER_ID
-                                        WHERE TICKET_ID = :ticketId";
+                                        WHERE T.TICKET_ID = :ticketId";
 
                     OracleCommand checkCmd = new OracleCommand(checkSql, conn);
                     checkCmd.BindByName = true;
@@ -962,41 +961,98 @@ namespace BI_TICKETING_SYSTEM.Pages
                         return;
                     }
 
-                    DataRow ticketRow = checkDt.Rows[0];
-                    int createdBy = Convert.ToInt32(ticketRow["CREATED_BY_USER_ID"]);
-                    string createdByRole = ticketRow["CREATED_BY_ROLE"].ToString().ToLower();
-
                     if (CurrentRole.ToLower() != "admin")
                     {
                         ShowError("Only Admins can delete tickets.");
                         return;
                     }
 
+                    DataRow ticketRow = checkDt.Rows[0];
+                    string ticketNumber = ticketRow["TICKET_NUMBER"].ToString();
+
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
-                    string oldJson = oldSnap == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(oldSnap);
+                    if (oldSnap != null)
+                        oldSnap["TICKET_NUMBER"] = ticketNumber;
 
-                    using (var delRemarks = new OracleCommand("DELETE FROM BI_OJT.TICKET_REMARKS WHERE TICKET_ID = :ticketId", conn))
+                    using (OracleTransaction txn = conn.BeginTransaction())
                     {
-                        delRemarks.BindByName = true;
-                        delRemarks.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                        delRemarks.ExecuteNonQuery();
+                        try
+                        {
+                            using (var delRemarks = new OracleCommand("DELETE FROM BI_OJT.TICKET_REMARKS WHERE TICKET_ID = :ticketId", conn))
+                            {
+                                delRemarks.Transaction = txn;
+                                delRemarks.BindByName = true;
+                                delRemarks.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                                delRemarks.ExecuteNonQuery();
+                            }
+
+                            using (var delAttachments = new OracleCommand("DELETE FROM BI_OJT.ATTACHMENTS WHERE TICKET_ID = :ticketId", conn))
+                            {
+                                delAttachments.Transaction = txn;
+                                delAttachments.BindByName = true;
+                                delAttachments.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                                delAttachments.ExecuteNonQuery();
+                            }
+
+                            using (var delNotifications = new OracleCommand("DELETE FROM BI_OJT.NOTIFICATIONS WHERE TICKET_ID = :ticketId", conn))
+                            {
+                                delNotifications.Transaction = txn;
+                                delNotifications.BindByName = true;
+                                delNotifications.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                                delNotifications.ExecuteNonQuery();
+                            }
+
+                            using (var nullAudit = new OracleCommand("UPDATE BI_OJT.AUDIT_LOGS SET TICKET_ID = NULL WHERE TICKET_ID = :ticketId", conn))
+                            {
+                                nullAudit.Transaction = txn;
+                                nullAudit.BindByName = true;
+                                nullAudit.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                                nullAudit.ExecuteNonQuery();
+                            }
+
+                            using (var cmd = new OracleCommand("DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId", conn))
+                            {
+                                cmd.Transaction = txn;
+                                cmd.BindByName = true;
+                                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            txn.Commit();
+                        }
+                        catch
+                        {
+                            txn.Rollback();
+                            throw;
+                        }
                     }
 
-                    using (var delAudit = new OracleCommand("DELETE FROM BI_OJT.AUDIT_LOGS WHERE TICKET_ID = :ticketId", conn))
+                    var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+                    string oldJson = oldSnap != null ? serializer.Serialize(oldSnap) : null;
+                    var newSnapDict = new Dictionary<string, object>
                     {
-                        delAudit.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                        delAudit.ExecuteNonQuery();
+                        { "TICKET_NUMBER", ticketNumber },
+                        { "MESSAGE", CurrentUserName + " deleted ticket " + ticketNumber }
+                    };
+                    string newJson = serializer.Serialize(newSnapDict);
+
+                    string auditSql = @"INSERT INTO BI_OJT.AUDIT_LOGS 
+                        (USER_ID, ACTION, TABLE_NAME, TICKET_ID, OLD_VALUE, NEW_VALUE, CREATED_AT) 
+                        VALUES (:userId, :action, :tableName, NULL, :oldVal, :newVal, SYSDATE)";
+
+                    using (var auditCmd = new OracleCommand(auditSql, conn))
+                    {
+                        auditCmd.BindByName = true;
+                        auditCmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+                        auditCmd.Parameters.Add("action", OracleDbType.Varchar2).Value = "DELETE_TICKET";
+                        auditCmd.Parameters.Add("tableName", OracleDbType.Varchar2).Value = "TICKETS";
+                        auditCmd.Parameters.Add("oldVal", OracleDbType.Clob).Value = (object)oldJson ?? DBNull.Value;
+                        auditCmd.Parameters.Add("newVal", OracleDbType.Clob).Value = (object)newJson ?? DBNull.Value;
+                        auditCmd.ExecuteNonQuery();
                     }
 
-                    using (var cmd = new OracleCommand("DELETE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId", conn))
-                    {
-                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-                        cmd.ExecuteNonQuery();
-                    }
-
-                    AuditHelper.LogAction(CurrentUserID, "DELETE_TICKET", "TICKETS", ticketId, oldSnap, null);
                     ShowSuccess("Ticket deleted successfully.");
-                    Response.Redirect(Request.RawUrl);
+                    LoadTickets();
                 }
             }
             catch (Exception ex)

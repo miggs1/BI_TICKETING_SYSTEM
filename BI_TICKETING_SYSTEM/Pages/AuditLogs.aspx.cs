@@ -136,7 +136,12 @@ namespace BI_TICKETING_SYSTEM.Pages
                     string ticketNumber = (ticketId.HasValue && ticketMap.TryGetValue(ticketId.Value, out var t)) ? t : $"#{ticketId}";
                     bool splitOccurred = false;
 
-                    if (action.Contains("CREATE"))
+                    if (action == "DELETE_TICKET")
+                    {
+                        string tktNum = oldObj?["TICKET_NUMBER"]?.ToString() ?? ticketNumber;
+                        AddLogEntry(dtDisplay, row, $"{row["FULL_NAME"]} deleted the {tktNum}");
+                    }
+                    else if (action.Contains("CREATE"))
                     {
                         AddLogEntry(dtDisplay, row, $"Ticket {ticketNumber} was created by {row["FULL_NAME"]}");
                     }

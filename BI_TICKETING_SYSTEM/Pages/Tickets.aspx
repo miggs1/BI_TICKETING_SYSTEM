@@ -220,6 +220,7 @@
                                     CssClass="btn btn-action btn-delete"
                                     Visible='<%# Session["UserRole"] != null && Session["UserRole"].ToString().ToLower() == "admin" %>'
                                     ToolTip="Delete"
+                                    CausesValidation="false"
                                     OnClientClick="return confirmDelete(this);">
                                     <i class="fas fa-trash"></i>
                                 </asp:LinkButton>
