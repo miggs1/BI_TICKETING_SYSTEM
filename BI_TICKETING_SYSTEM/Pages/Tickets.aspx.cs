@@ -445,30 +445,27 @@ namespace BI_TICKETING_SYSTEM.Pages
 
             try
             {
-                DateTime dueDate;
+                string priority = ddlCreatePriority.SelectedValue.Trim();
+                DateTime createdDate = DateTime.Now;
+                DateTime? slaDueDate = CalculateSlaDueDate(priority, createdDate);
 
-                
-                if (!string.IsNullOrWhiteSpace(txtDueDate.Text) &&
-                    DateTime.TryParseExact(txtDueDate.Text, "yyyy-MM-dd",
-                        System.Globalization.CultureInfo.InvariantCulture,
-                        System.Globalization.DateTimeStyles.None, out dueDate))
+                if (!slaDueDate.HasValue)
                 {
-                }
-                else
-                {
-                    int slaHours = GetSlaHoursByPriority(ddlCreatePriority.SelectedValue);
-                    dueDate = CalculateSlaWorkingHours(DateTime.Now, slaHours);
-                }
-
-                
-                if (dueDate <= DateTime.Now)
-                {
-                    ShowError("Due date must be in the future.");
+                    ShowError("Invalid priority selected.");
                     hfShowModal.Value = "create";
                     return;
                 }
 
-                
+                DateTime dueDate = slaDueDate.Value;
+
+                if (dueDate <= createdDate)
+                {
+                    ShowError("Due date must be later than the ticket creation time.");
+                    hfShowModal.Value = "create";
+                    return;
+                }
+
+
                 string savedFileName = null;
                 string relativePath = null;
                 string originalFileName = null;
@@ -1332,41 +1329,46 @@ namespace BI_TICKETING_SYSTEM.Pages
         }
 
         //march 27, 2026 - 00:40
+        // april 8 - changed
         private DateTime? CalculateSlaDueDate(string priority, DateTime startDate)
         {
-            switch (priority?.ToLower())
+            switch (priority?.Trim().ToLower())
             {
-                case "critical": return startDate.AddHours(4);
-                case "high": return startDate.AddDays(1);
-                case "medium": return startDate.AddDays(3);
-                case "low": return startDate.AddDays(7);
-                default: return null; //unassigned
+                case "urgent":
+                    return CalculateSlaWorkingHours(startDate, 1);
+
+                case "high":
+                    return GetEndOfWorkingDay(startDate);
+
+                case "medium":
+                    return GetNextWorkingDay(startDate).Date.AddHours(17);
+
+                case "low":
+                    return GetNextWorkingDay(GetNextWorkingDay(startDate)).Date.AddHours(17);
+
+                default:
+                    return null;
             }
         }
 
-        private DateTime CalculateSlaWorkingHours(DateTime startDate, int workingHours)
+        private DateTime CalculateSlaWorkingHours(DateTime startDate, double workingHours)
         {
-            DateTime current = startDate;
-
-            // If start is outside working hours, move to next working day start
-            if (current.DayOfWeek == DayOfWeek.Saturday)
-                current = current.AddDays(2).Date.AddHours(8);
-            else if (current.DayOfWeek == DayOfWeek.Sunday)
-                current = current.AddDays(1).Date.AddHours(8);
-            else if (current.TimeOfDay < TimeSpan.FromHours(8))
-                current = current.Date.AddHours(8);
-            else if (current.TimeOfDay >= TimeSpan.FromHours(17))
-                current = current.AddDays(1).Date.AddHours(8);
-
-            int hoursRemaining = workingHours;
+            DateTime current = NormalizeToWorkingHours(startDate);
+            double hoursRemaining = workingHours;
 
             while (hoursRemaining > 0)
             {
-                // Skip weekends
                 if (current.DayOfWeek == DayOfWeek.Saturday)
-                { current = current.AddDays(2).Date.AddHours(8); continue; }
+                {
+                    current = current.AddDays(2).Date.AddHours(8);
+                    continue;
+                }
+
                 if (current.DayOfWeek == DayOfWeek.Sunday)
-                { current = current.AddDays(1).Date.AddHours(8); continue; }
+                {
+                    current = current.AddDays(1).Date.AddHours(8);
+                    continue;
+                }
 
                 DateTime workEnd = current.Date.AddHours(17);
                 double hoursLeftToday = (workEnd - current).TotalHours;
@@ -1378,7 +1380,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 }
                 else
                 {
-                    hoursRemaining -= (int)hoursLeftToday;
+                    hoursRemaining -= hoursLeftToday;
                     current = current.AddDays(1).Date.AddHours(8);
                 }
             }
@@ -1386,15 +1388,51 @@ namespace BI_TICKETING_SYSTEM.Pages
             return current;
         }
 
+        //Helpers 
+        private DateTime NormalizeToWorkingHours(DateTime dateTime)
+        {
+            if (dateTime.DayOfWeek == DayOfWeek.Saturday)
+                return dateTime.AddDays(2).Date.AddHours(8);
+
+            if (dateTime.DayOfWeek == DayOfWeek.Sunday)
+                return dateTime.AddDays(1).Date.AddHours(8);
+
+            if (dateTime.TimeOfDay < TimeSpan.FromHours(8))
+                return dateTime.Date.AddHours(8);
+
+            if (dateTime.TimeOfDay >= TimeSpan.FromHours(17))
+                return GetNextWorkingDay(dateTime).Date.AddHours(8);
+
+            return dateTime;
+        }
+
+        private DateTime GetNextWorkingDay(DateTime date)
+        {
+            DateTime nextDay = date.Date.AddDays(1);
+
+            while (nextDay.DayOfWeek == DayOfWeek.Saturday || nextDay.DayOfWeek == DayOfWeek.Sunday)
+            {
+                nextDay = nextDay.AddDays(1);
+            }
+
+            return nextDay;
+        }
+
+        private DateTime GetEndOfWorkingDay(DateTime startDate)
+        {
+            DateTime current = NormalizeToWorkingHours(startDate);
+            return current.Date.AddHours(17);
+        }
+
         private int GetSlaHoursByPriority(string priority)
         {
-            switch (priority?.ToLower())
+            switch (priority?.Trim().ToLower())
             {
-                case "urgent": return 4;
-                case "high": return 8;
-                case "medium": return 24;
-                case "low": return 40;
-                default: return 24;
+                case "urgent": return 1;
+                case "high": return 9;     
+                case "medium": return 18;  
+                case "low": return 27;     
+                default: return 0;
             }
         }
 
