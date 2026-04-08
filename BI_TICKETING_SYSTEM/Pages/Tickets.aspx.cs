@@ -663,7 +663,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                         // Due Date
                         lblViewDueDate.Text = row["DUE_DATE"] == DBNull.Value
                             ? "Not Set"
-                            : Convert.ToDateTime(row["DUE_DATE"]).ToString("MM/dd/yyyy");
+                            : Convert.ToDateTime(row["DUE_DATE"]).ToString("MM/dd/yyyy hh:mm tt");
 
                         try
                         {
