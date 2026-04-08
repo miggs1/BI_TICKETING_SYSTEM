@@ -496,9 +496,9 @@
                                     <td><asp:Label ID="lblAttachUploadedBy" runat="server" /></td>
                                     <td><asp:Label ID="lblAttachUploadedAt" runat="server" /></td>
                                     <td>
-                                        <asp:HyperLink ID="hlAttachDownload" runat="server" CssClass="btn btn-sm btn-outline-primary">
+                                        <asp:LinkButton ID="btnAttachDownload" runat="server" CssClass="btn btn-sm btn-outline-primary" CausesValidation="false" OnClick="btnAttachDownload_Click">
                                             <i class="fas fa-download mr-1"></i>Download
-                                        </asp:HyperLink>
+                                        </asp:LinkButton>
                                     </td>
                                 </tr>
                             </tbody>
@@ -571,6 +571,9 @@
     <asp:HiddenField ID="hfShowModal" runat="server" Value="" />
     <asp:HiddenField ID="hfSwalMessage" runat="server" Value="" />
     <asp:HiddenField ID="hfSwalType" runat="server" Value="" />
+    <asp:HiddenField ID="hfAttachFilePath" runat="server" Value="" />
+    <asp:HiddenField ID="hfAttachOriginalName" runat="server" Value="" />
+    <asp:HiddenField ID="hfAttachFileType" runat="server" Value="" />
 
 </asp:Content>
 

@@ -339,13 +339,13 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.Label lblAttachUploadedAt;
 
         /// <summary>
-        /// hlAttachDownload control.
+        /// btnAttachDownload control.
         /// </summary>
         /// <remarks>
         /// Auto-generated field.
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
-        protected global::System.Web.UI.WebControls.HyperLink hlAttachDownload;
+        protected global::System.Web.UI.WebControls.LinkButton btnAttachDownload;
 
         /// <summary>
         /// pnlAttachImagePreview control.
@@ -526,5 +526,32 @@ namespace BI_TICKETING_SYSTEM.Pages
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
         protected global::System.Web.UI.WebControls.HiddenField hfSwalType;
+
+        /// <summary>
+        /// hfAttachFilePath control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.HiddenField hfAttachFilePath;
+
+        /// <summary>
+        /// hfAttachOriginalName control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.HiddenField hfAttachOriginalName;
+
+        /// <summary>
+        /// hfAttachFileType control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.HiddenField hfAttachFileType;
     }
 }

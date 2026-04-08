@@ -717,8 +717,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                                         ? "-"
                                         : Convert.ToDateTime(attachRow["UPLOADED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
 
-                                    hlAttachDownload.NavigateUrl = resolvedUrl;
-                                    hlAttachDownload.Target = "_blank";
+                                    hfAttachFilePath.Value = attachmentPath ?? "";
+                                    hfAttachOriginalName.Value = fileName ?? "";
+                                    hfAttachFileType.Value = fileType ?? "";
 
                                     if (isImage)
                                     {
@@ -756,6 +757,50 @@ namespace BI_TICKETING_SYSTEM.Pages
             catch (Exception ex)
             {
                 ShowError("Error loading ticket details: " + ex.Message);
+            }
+        }
+
+        protected void btnAttachDownload_Click(object sender, EventArgs e)
+        {
+            string relativePath = hfAttachFilePath.Value;
+            string originalName = hfAttachOriginalName.Value;
+            string fileType = hfAttachFileType.Value;
+
+            if (string.IsNullOrWhiteSpace(relativePath))
+            {
+                ShowError("No attachment file path found.");
+                return;
+            }
+
+            try
+            {
+                string physicalPath = Server.MapPath(relativePath);
+
+                if (!System.IO.File.Exists(physicalPath))
+                {
+                    ShowError("The attachment file was not found on the server.");
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(originalName))
+                    originalName = System.IO.Path.GetFileName(physicalPath);
+
+                if (string.IsNullOrWhiteSpace(fileType))
+                    fileType = "application/octet-stream";
+
+                Response.Clear();
+                Response.ContentType = fileType;
+                Response.AddHeader("Content-Disposition", "attachment; filename=\"" + originalName + "\"");
+                Response.TransmitFile(physicalPath);
+                Response.Flush();
+                Response.End();
+            }
+            catch (System.Threading.ThreadAbortException)
+            {
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error downloading attachment: " + ex.Message);
             }
         }
 
