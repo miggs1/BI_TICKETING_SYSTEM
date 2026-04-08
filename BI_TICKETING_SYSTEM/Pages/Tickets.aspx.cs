@@ -475,10 +475,10 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                 if (fuAttachment.HasFile)
                 {
-                    originalFileName = fuAttachment.FileName;
-                    string ext = System.IO.Path.GetExtension(originalFileName);
-                    savedFileName = Guid.NewGuid().ToString() + ext;
-                    relativePath = "~/Uploads/Tickets/" + savedFileName;
+                    var fileInfo = SaveAttachmentDetails(fuAttachment);
+                    originalFileName = fileInfo.origName;
+                    savedFileName = fileInfo.savedName; 
+                    relativePath = fileInfo.fullPath;
                 }
 
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
@@ -509,10 +509,10 @@ namespace BI_TICKETING_SYSTEM.Pages
                             
                             string sql = @"INSERT INTO BI_OJT.TICKETS 
                     (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, PRIORITY,
-                     ASSIGNED_TO_USER_ID, CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT, DUE_DATE, ATTACHMENT_PATH)
+                     ASSIGNED_TO_USER_ID, CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT, DUE_DATE)
                     VALUES 
                     (:ticketId, :ticketNumber, :title, :description, :status, :priority,
-                     :assignedTo, :createdBy, SYSDATE, SYSDATE, :dueDate, :attachmentPath)";
+                     :assignedTo, :createdBy, SYSDATE, SYSDATE, :dueDate)";
 
                             OracleCommand cmd = new OracleCommand(sql, conn);
                             cmd.Transaction = txn;
@@ -527,18 +527,15 @@ namespace BI_TICKETING_SYSTEM.Pages
                             cmd.Parameters.Add("assignedTo", OracleDbType.Int32).Value = DBNull.Value;
                             cmd.Parameters.Add("createdBy", OracleDbType.Int32).Value = CurrentUserID;
                             cmd.Parameters.Add("dueDate", OracleDbType.Date).Value = dueDate;
-                            cmd.Parameters.Add("attachmentPath", OracleDbType.Varchar2)
-                                .Value = (object)relativePath ?? DBNull.Value;
 
                             cmd.ExecuteNonQuery();
 
-                            
                             if (fuAttachment.HasFile)
                             {
                                 string attachSql = @"INSERT INTO BI_OJT.ATTACHMENTS 
-                        (ATTACHMENT_ID, TICKET_ID, ORIGINAL_FILE_NAME, SAVED_FILE_NAME, 
+                        (TICKET_ID, ORIGINAL_FILE_NAME, SAVED_FILE_NAME, 
                          FILE_PATH, FILE_SIZE, FILE_TYPE, UPLOADED_BY, UPLOADED_AT) 
-                        VALUES (BI_OJT.ATTACHMENTS_SEQ.NEXTVAL, :ticketId, :origName, :savedName, 
+                        VALUES (:ticketId, :origName, :savedName, 
                                 :path, :fileSize, :fileType, :userId, SYSDATE)";
 
                                 OracleCommand attachCmd = new OracleCommand(attachSql, conn);
@@ -549,12 +546,12 @@ namespace BI_TICKETING_SYSTEM.Pages
                                 attachCmd.Parameters.Add("origName", OracleDbType.Varchar2).Value = originalFileName;
                                 attachCmd.Parameters.Add("savedName", OracleDbType.Varchar2).Value = savedFileName;
                                 attachCmd.Parameters.Add("path", OracleDbType.Varchar2).Value = relativePath;
-                                attachCmd.Parameters.Add("fileSize", OracleDbType.Int32).Value = fuAttachment.PostedFile.ContentLength; // ✅ FIXED
+                                attachCmd.Parameters.Add("fileSize", OracleDbType.Int32).Value = fuAttachment.PostedFile.ContentLength;
                                 attachCmd.Parameters.Add("fileType", OracleDbType.Varchar2).Value = fuAttachment.PostedFile.ContentType;
                                 attachCmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
 
-                            attachCmd.ExecuteNonQuery();
-                        }
+                                attachCmd.ExecuteNonQuery();
+                            }
 
                             
                             var newSnap = GetTicketSnapshot((int)ticketId, conn);
@@ -673,41 +670,75 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                         try
                         {
-                            string attachmentPath = row["ATTACHMENT_PATH"].ToString();
-                            if (!string.IsNullOrEmpty(attachmentPath))
+                            string attachSql = @"
+                                SELECT ORIGINAL_FILE_NAME, SAVED_FILE_NAME, FILE_PATH, FILE_TYPE, FILE_SIZE, UPLOADED_BY, UPLOADED_AT
+                                FROM BI_OJT.ATTACHMENTS
+                                WHERE TICKET_ID = :ticketId
+                                ORDER BY UPLOADED_AT DESC";
+
+                            using (OracleCommand attachCmd = new OracleCommand(attachSql, conn))
                             {
-                                string resolvedUrl = ResolveUrl(attachmentPath);
-                                string fileName = System.IO.Path.GetFileName(attachmentPath);
-                                if (fileName.Length > 9 && fileName[8] == '_')
-                                    fileName = fileName.Substring(9);
-                                string ext = System.IO.Path.GetExtension(attachmentPath).ToLower();
-                                bool isImage = ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".bmp" || ext == ".webp";
+                                attachCmd.BindByName = true;
+                                attachCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
 
-                                lblAttachFileName.Text = fileName;
-                                lblAttachFileType.Text = ext.TrimStart('.').ToUpper();
-                                lblAttachUploadedBy.Text = row["CREATED_BY_NAME"].ToString();
-                                lblAttachUploadedAt.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
-                                hlAttachDownload.NavigateUrl = resolvedUrl;
-                                hlAttachDownload.Target = "_blank";
+                                OracleDataAdapter attachDa = new OracleDataAdapter(attachCmd);
+                                DataTable dtAttach = new DataTable();
+                                attachDa.Fill(dtAttach);
 
-                                if (isImage)
+                                if (dtAttach.Rows.Count > 0)
                                 {
-                                    imgAttachFullPreview.ImageUrl = resolvedUrl;
-                                    pnlAttachImagePreview.Visible = true;
+                                    pnlHasAttachment.Visible = true;
+                                    pnlNoAttachmentMsg.Visible = false;
+
+                                    DataRow attachRow = dtAttach.Rows[0];
+
+                                    string attachmentPath = attachRow["FILE_PATH"]?.ToString();
+                                    string fileName = attachRow["ORIGINAL_FILE_NAME"]?.ToString();
+                                    string fileType = attachRow["FILE_TYPE"]?.ToString();
+                                    string resolvedUrl = ResolveUrl(attachmentPath);
+
+                                    string lowerPath = (attachmentPath ?? "").ToLower();
+                                    string lowerType = (fileType ?? "").ToLower();
+
+                                    bool isImage =
+                                        lowerPath.EndsWith(".jpg") || lowerPath.EndsWith(".jpeg") ||
+                                        lowerPath.EndsWith(".png") || lowerPath.EndsWith(".gif") ||
+                                        lowerPath.EndsWith(".bmp") || lowerPath.EndsWith(".webp") ||
+                                        lowerType.Contains("image");
+
+                                    lblAttachFileName.Text = string.IsNullOrWhiteSpace(fileName)
+                                        ? System.IO.Path.GetFileName(attachmentPath)
+                                        : fileName;
+
+                                    lblAttachFileType.Text = string.IsNullOrWhiteSpace(fileType)
+                                        ? System.IO.Path.GetExtension(attachmentPath)?.TrimStart('.').ToUpper()
+                                        : fileType;
+
+                                    lblAttachUploadedBy.Text = row["CREATED_BY_NAME"].ToString();
+
+                                    lblAttachUploadedAt.Text = attachRow["UPLOADED_AT"] == DBNull.Value
+                                        ? "-"
+                                        : Convert.ToDateTime(attachRow["UPLOADED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
+
+                                    hlAttachDownload.NavigateUrl = resolvedUrl;
+                                    hlAttachDownload.Target = "_blank";
+
+                                    if (isImage)
+                                    {
+                                        imgAttachFullPreview.ImageUrl = resolvedUrl;
+                                        pnlAttachImagePreview.Visible = true;
+                                    }
+                                    else
+                                    {
+                                        pnlAttachImagePreview.Visible = false;
+                                    }
                                 }
                                 else
                                 {
+                                    pnlHasAttachment.Visible = false;
+                                    pnlNoAttachmentMsg.Visible = true;
                                     pnlAttachImagePreview.Visible = false;
                                 }
-
-                                pnlHasAttachment.Visible = true;
-                                pnlNoAttachmentMsg.Visible = false;
-                            }
-                            else
-                            {
-                                pnlHasAttachment.Visible = false;
-                                pnlNoAttachmentMsg.Visible = true;
-                                pnlAttachImagePreview.Visible = false;
                             }
                         }
                         catch
