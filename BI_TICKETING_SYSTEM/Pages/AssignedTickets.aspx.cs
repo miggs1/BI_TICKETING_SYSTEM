@@ -305,7 +305,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                         LEFT JOIN BI_OJT.USERS U
                         ON R.USER_ID = U.USER_ID
                         WHERE R.TICKET_ID = :ticketId
-                        ORDER BY R.CREATED_AT ASC";
+                        ORDER BY R.CREATED_AT DESC";
                     OracleCommand cmd = new OracleCommand(sql, conn);
                     cmd.BindByName = true;
                     cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;

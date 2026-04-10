@@ -822,7 +822,7 @@ namespace BI_TICKETING_SYSTEM.Pages
             FROM BI_OJT.TICKET_REMARKS TR
             LEFT JOIN BI_OJT.USERS U ON TR.USER_ID = U.USER_ID
             WHERE TR.TICKET_ID = :ticketId
-            ORDER BY TR.CREATED_AT ASC";
+            ORDER BY TR.CREATED_AT DESC";
 
                 using (OracleCommand cmdRemarks = new OracleCommand(remarksSql, conn))
                 {
@@ -877,7 +877,7 @@ namespace BI_TICKETING_SYSTEM.Pages
             LEFT JOIN BI_OJT.USERS U ON A.USER_ID = U.USER_ID
             WHERE A.TABLE_NAME = 'TICKETS'
               AND A.TICKET_ID = :ticketId
-            ORDER BY A.CREATED_AT ASC";
+            ORDER BY A.CREATED_AT DESC";
 
                 using (OracleCommand cmdAudit = new OracleCommand(auditSql, conn))
                 {
@@ -957,7 +957,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 }
 
                 DataView dv = dtFinal.DefaultView;
-                dv.Sort = "SORT_DATE ASC";
+                dv.Sort = "SORT_DATE DESC";
 
                 DataTable dtBind = dv.ToTable();
                 dtBind.Columns.Remove("SORT_DATE");
