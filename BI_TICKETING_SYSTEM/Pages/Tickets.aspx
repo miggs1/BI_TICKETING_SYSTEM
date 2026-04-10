@@ -51,10 +51,11 @@
     .audit-trail-table td { font-size: 12px; vertical-align: middle; padding: 8px 10px; }
     .audit-row-user { border-left: 3px solid #dc3545; background: rgba(220, 53, 69, 0.05); }
     .audit-row-admin { border-left: 3px solid #007bff; background: rgba(0, 123, 255, 0.05); }
-    .audit-row-support { border-left: 3px solid #28a745; background: rgba(40, 167, 69, 0.05); }
-    .audit-badge-status { background: #17a2b8; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: inline-block; }
-    .audit-badge-remark { background: #28a745; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: inline-block; }
-
+    .audit-row-support { border-left: 3px solid #ffc107; background: rgba(40, 167, 69, 0.05); }
+    .audit-badge-admin { background: #007bff; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: inline-block; }
+    .audit-badge-user { background: #dc3545; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: inline-block; }
+    .audit-badge-support { background: #ffc107; color: #333; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: inline-block; }
+    .audit-badge-default { background: #6c757d; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: inline-block; }
 </style>
 </asp:Content>
 
@@ -443,7 +444,15 @@
                                             <tr class='audit-trail-row <%# GetAuditRowClass(Eval("USER_ROLE").ToString()) %>'>
                                                 <td style="white-space:nowrap;"><%# Eval("DATE_DISPLAY") %></td>
                                                 <td><%# Eval("CHANGED_BY") %></td>
-                                                <td><span class='<%# Eval("ENTRY_TYPE").ToString() == "Status Change" ? "audit-badge-status" : "audit-badge-remark" %>'><%# Eval("ENTRY_TYPE") %></span></td>
+                                                <td><span class='<%# 
+                                                        Eval("USER_ROLE").ToString() == "admin" ? "audit-badge-admin" :
+                                                        Eval("USER_ROLE").ToString() == "user" ? "audit-badge-user" :
+                                                        Eval("USER_ROLE").ToString() == "support" ? "audit-badge-support" :
+                                                        "audit-badge-default"
+                                                    %>'>
+                                                    <%# Eval("ENTRY_TYPE") %>
+                                                    </span>
+                                                </td>
                                                 <td style="white-space:pre-wrap;"><%# Eval("DETAILS") %></td>
                                             </tr>
                                         </ItemTemplate>

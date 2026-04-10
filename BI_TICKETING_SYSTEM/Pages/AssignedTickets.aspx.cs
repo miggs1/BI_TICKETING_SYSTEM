@@ -1004,9 +1004,11 @@ namespace BI_TICKETING_SYSTEM.Pages
 
             string stat = status?.ToString();
             if ((stat == "Resolved" || stat == "Closed") && resolvedAt != DBNull.Value)
+            {
                 end = Convert.ToDateTime(resolvedAt);
+            }
 
-        int days = (int)Math.Floor((end - start).TotalDays);
+            int days = (int)Math.Floor((end - start).TotalDays);
             return days == 0 ? "Today" : $"{days} Days";
         }
 
