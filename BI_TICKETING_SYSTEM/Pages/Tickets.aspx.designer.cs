@@ -366,6 +366,42 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.Panel pnlNoRemarks;
 
         /// <summary>
+        /// pnlAddRemark control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Panel pnlAddRemark;
+
+        /// <summary>
+        /// txtNewRemark control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.TextBox txtNewRemark;
+
+        /// <summary>
+        /// btnAddRemark control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Button btnAddRemark;
+
+        /// <summary>
+        /// pnlClosedRemarkNotice control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Panel pnlClosedRemarkNotice;
+
+        /// <summary>
         /// lblAttachFileName control.
         /// </summary>
         /// <remarks>
@@ -553,5 +589,14 @@ namespace BI_TICKETING_SYSTEM.Pages
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
         protected global::System.Web.UI.WebControls.HiddenField hfAttachFileType;
+
+        /// <summary>
+        /// hfViewTicketId control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.HiddenField hfViewTicketId;
     }
 }

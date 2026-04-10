@@ -750,6 +750,31 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                         LoadTicketRemarks(ticketId, conn);
 
+                        hfViewTicketId.Value = ticketId.ToString();
+
+                        bool isClosed = string.Equals(row["STATUS"].ToString(), "Closed", StringComparison.OrdinalIgnoreCase);
+                        bool canAddRemark = false;
+
+                        string role = CurrentRole.ToLower();
+
+                        if (!isClosed)
+                        {
+                            if (role == "user")
+                            {
+                                if (row["CREATED_BY_USER_ID"] != DBNull.Value)
+                                {
+                                    int createdById = Convert.ToInt32(row["CREATED_BY_USER_ID"]);
+                                    if (createdById == CurrentUserID)
+                                    {
+                                        canAddRemark = true;
+                                    }
+                                }
+                            }
+                        }
+
+                        pnlAddRemark.Visible = canAddRemark;
+                        pnlClosedRemarkNotice.Visible = isClosed;
+                        txtNewRemark.Text = "";
 
                     }
                 }
@@ -804,6 +829,104 @@ namespace BI_TICKETING_SYSTEM.Pages
             }
         }
 
+        protected void btnAddRemark_Click(object sender, EventArgs e)
+        {
+            int ticketId = 0;
+            if (string.IsNullOrWhiteSpace(hfViewTicketId.Value) || !int.TryParse(hfViewTicketId.Value, out ticketId) || ticketId <= 0)
+            {
+                ShowError("Invalid ticket.");
+                return;
+            }
+
+            string remark = txtNewRemark.Text.Trim();
+            if (string.IsNullOrEmpty(remark))
+            {
+                ShowError("Please enter a remark.");
+                hfShowModal.Value = "view";
+                LoadTicketForView(ticketId);
+                return;
+            }
+
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    string checkSql = "SELECT STATUS, CREATED_BY_USER_ID FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
+                    using (OracleCommand checkCmd = new OracleCommand(checkSql, conn))
+                    {
+                        checkCmd.BindByName = true;
+                        checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                        using (var reader = checkCmd.ExecuteReader())
+                        {
+                            if (!reader.Read())
+                            {
+                                ShowError("Ticket not found.");
+                                return;
+                            }
+
+                            string status = reader["STATUS"]?.ToString();
+                            if (string.Equals(status, "Closed", StringComparison.OrdinalIgnoreCase))
+                            {
+                                ShowError("Cannot add remark to a closed ticket.");
+                                hfShowModal.Value = "view";
+                                LoadTicketForView(ticketId);
+                                return;
+                            }
+
+                            if (CurrentRole.ToLower() == "user")
+                            {
+                                int createdById = reader["CREATED_BY_USER_ID"] != DBNull.Value
+                                    ? Convert.ToInt32(reader["CREATED_BY_USER_ID"])
+                                    : 0;
+                                if (createdById != CurrentUserID)
+                                {
+                                    ShowError("You can only add remarks to your own tickets.");
+                                    hfShowModal.Value = "view";
+                                    LoadTicketForView(ticketId);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
+                    string sql = @"INSERT INTO BI_OJT.TICKET_REMARKS
+                        (TICKET_ID, USER_ID, REMARK_TEXT, CREATED_AT, UPDATED_AT)
+                        VALUES
+                        (:ticketId, :userId, :remarkText, SYSDATE, SYSDATE)";
+
+                    using (OracleCommand cmd = new OracleCommand(sql, conn))
+                    {
+                        cmd.BindByName = true;
+                        cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                        cmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
+                        cmd.Parameters.Add("remarkText", OracleDbType.Clob).Value = remark;
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    var newSnap = new Dictionary<string, object>
+                    {
+                        { "REMARK_TEXT", remark },
+                        { "TICKET_ID", ticketId }
+                    };
+                    AuditHelper.LogAction(CurrentUserID, "ADD_REMARK", "TICKET_REMARKS", ticketId, null, newSnap);
+                }
+
+                txtNewRemark.Text = "";
+                hfShowModal.Value = "view";
+                LoadTicketForView(ticketId);
+                ShowSuccess("Remark added successfully!");
+            }
+            catch (Exception ex)
+            {
+                hfShowModal.Value = "view";
+                LoadTicketForView(ticketId);
+                ShowError("Error adding remark: " + ex.Message);
+            }
+        }
+
         private void LoadTicketRemarks(int ticketId, OracleConnection conn)
         {
             try
@@ -816,7 +939,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 dtFinal.Columns.Add("USER_ROLE", typeof(string));
                 dtFinal.Columns.Add("SORT_DATE", typeof(DateTime));
 
-                
+
                 string remarksSql = @"
             SELECT TR.REMARK_TEXT, TR.CREATED_AT, U.FULL_NAME, U.ROLE
             FROM BI_OJT.TICKET_REMARKS TR
@@ -870,7 +993,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                     }
                 }
 
-                
+
                 string auditSql = @"
             SELECT U.FULL_NAME, U.ROLE, A.ACTION, A.OLD_VALUE, A.NEW_VALUE, A.CREATED_AT
             FROM BI_OJT.AUDIT_LOGS A
@@ -943,36 +1066,46 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                             if (oldAssigned != newAssigned)
                             {
-                                dtFinal.Rows.Add(
-                                    dateDisplay,
-                                    fullName,
-                                    "Assignment Change",
-                                    "Assignment updated",
-                                    role.ToLower(),
-                                    createdAt
+                                bool hadPreviousAssignment = !string.IsNullOrWhiteSpace(oldAssigned) && oldAssigned != "0";
+                                bool hasNewAssignment = !string.IsNullOrWhiteSpace(newAssigned) && newAssigned != "0";
+
+                                if (hadPreviousAssignment && hasNewAssignment)
+                                {
+                                    string assignedName = GetAssignedUserNameById(newAssigned, conn);
+
+                                    dtFinal.Rows.Add(
+                                        dateDisplay,
+                                        fullName,
+                                        "Assignment Change",
+                                        $"{fullName} changed the assigned ticket to {assignedName}",
+                                        role.ToLower(),
+                                        createdAt
                                 );
+                                }
                             }
                         }
                     }
-                }
 
-                DataView dv = dtFinal.DefaultView;
-                dv.Sort = "SORT_DATE DESC";
+                    RemoveRedundantAssignmentStatusRows(dtFinal);
 
-                DataTable dtBind = dv.ToTable();
-                dtBind.Columns.Remove("SORT_DATE");
+                    DataView dv = dtFinal.DefaultView;
+                    dv.Sort = "SORT_DATE DESC";
 
-                if (dtBind.Rows.Count > 0)
-                {
-                    rptRemarks.DataSource = dtBind;
-                    rptRemarks.DataBind();
-                    pnlNoRemarks.Visible = false;
-                }
-                else
-                {
-                    rptRemarks.DataSource = null;
-                    rptRemarks.DataBind();
-                    pnlNoRemarks.Visible = true;
+                    DataTable dtBind = dv.ToTable();
+                    dtBind.Columns.Remove("SORT_DATE");
+
+                    if (dtBind.Rows.Count > 0)
+                    {
+                        rptRemarks.DataSource = dtBind;
+                        rptRemarks.DataBind();
+                        pnlNoRemarks.Visible = false;
+                    }
+                    else
+                    {
+                        rptRemarks.DataSource = null;
+                        rptRemarks.DataBind();
+                        pnlNoRemarks.Visible = true;
+                    }
                 }
             }
             catch (Exception ex)
@@ -1318,7 +1451,68 @@ namespace BI_TICKETING_SYSTEM.Pages
                 }
             }
         }
+        private string GetAssignedUserNameById(string userId, OracleConnection conn)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return "Unassigned";
 
+            string sql = "SELECT FULL_NAME FROM BI_OJT.USERS WHERE USER_ID = :userId";
+            using (OracleCommand cmd = new OracleCommand(sql, conn))
+            {
+                cmd.BindByName = true;
+                cmd.Parameters.Add("userId", OracleDbType.Int32).Value = Convert.ToInt32(userId);
+
+                object result = cmd.ExecuteScalar();
+                return result == null || result == DBNull.Value ? "Unassigned" : result.ToString();
+            }
+        }
+
+        private void RemoveRedundantAssignmentStatusRows(DataTable dtFinal)
+        {
+            List<DataRow> rowsToRemove = new List<DataRow>();
+
+            foreach (DataRow row in dtFinal.Rows)
+            {
+                string entryType = row["ENTRY_TYPE"]?.ToString() ?? "";
+                string changedBy = row["CHANGED_BY"]?.ToString() ?? "";
+                string details = row["DETAILS"]?.ToString() ?? "";
+                DateTime sortDate = Convert.ToDateTime(row["SORT_DATE"]);
+
+                if (entryType == "Status Change" && details.Contains(" assigned ticket to "))
+                {
+                    bool hasMatchingAssignmentChange = false;
+
+                    foreach (DataRow otherRow in dtFinal.Rows)
+                    {
+                        if (otherRow == row) continue;
+
+                        string otherEntryType = otherRow["ENTRY_TYPE"]?.ToString() ?? "";
+                        string otherChangedBy = otherRow["CHANGED_BY"]?.ToString() ?? "";
+                        string otherDetails = otherRow["DETAILS"]?.ToString() ?? "";
+                        DateTime otherSortDate = Convert.ToDateTime(otherRow["SORT_DATE"]);
+
+                        if (otherEntryType == "Assignment Change" &&
+                            otherChangedBy == changedBy &&
+                            Math.Abs((otherSortDate - sortDate).TotalSeconds) < 5 &&
+                            otherDetails.Contains(" changed the assigned ticket to "))
+                        {
+                            hasMatchingAssignmentChange = true;
+                            break;
+                        }
+                    }
+
+                    if (hasMatchingAssignmentChange)
+                    {
+                        rowsToRemove.Add(row);
+                    }
+                }
+            }
+
+            foreach (DataRow r in rowsToRemove)
+                dtFinal.Rows.Remove(r);
+
+            dtFinal.AcceptChanges();
+        }
         private void InsertStatusRemark(int ticketId, string newStatus, OracleConnection conn)
         {
             string sql = @"INSERT INTO BI_OJT.TICKET_REMARKS 

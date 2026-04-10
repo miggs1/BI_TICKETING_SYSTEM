@@ -463,6 +463,23 @@
                         <asp:Panel ID="pnlNoRemarks" runat="server" Visible="false" CssClass="no-remarks">
                             <i class="fas fa-info-circle mr-2"></i>No remarks have been added to this ticket yet.
                         </asp:Panel>
+
+                        <asp:Panel ID="pnlAddRemark" runat="server" Visible="false" CssClass="mt-3">
+                            <label class="form-label">Add Remark</label>
+                            <asp:TextBox ID="txtNewRemark" runat="server" CssClass="form-control" TextMode="MultiLine" Rows="3" 
+                                placeholder="Enter your remark here..." />
+                            <asp:Button ID="btnAddRemark" runat="server" Text="Add Remark"
+                                CssClass="btn btn-create mt-2"
+                                OnClick="btnAddRemark_Click"
+                                CausesValidation="false" />
+                        </asp:Panel>
+
+                        <asp:Panel ID="pnlClosedRemarkNotice" runat="server" Visible="false" CssClass="mt-3">
+                            <div class="alert alert-secondary mb-0">
+                                Remarks are disabled for closed tickets.
+                            </div>
+                        </asp:Panel>
+
                         <div class="d-flex justify-content-between align-items-center mt-2" id="auditPaginationTickets">
                             <span class="pagination-info" id="auditPageInfoTickets"></span>
                             <div>
@@ -583,6 +600,7 @@
     <asp:HiddenField ID="hfAttachFilePath" runat="server" Value="" />
     <asp:HiddenField ID="hfAttachOriginalName" runat="server" Value="" />
     <asp:HiddenField ID="hfAttachFileType" runat="server" Value="" />
+    <asp:HiddenField ID="hfViewTicketId" runat="server" />
 
 </asp:Content>
 
