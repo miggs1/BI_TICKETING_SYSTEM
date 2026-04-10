@@ -71,7 +71,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     string sql = @"
                         SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
-                               T.CREATED_AT, T.ASSIGNED_TO_USER_ID,
+                               T.CREATED_AT, T.DUE_DATE, T.RESOLVED_AT, T.ASSIGNED_TO_USER_ID,
                                U.FULL_NAME AS CREATED_BY_NAME,
                                A.FULL_NAME AS ASSIGNED_TO_NAME
                         FROM BI_OJT.TICKETS T
@@ -600,7 +600,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                 string sql = @"
                     SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
-                           T.CREATED_AT, T.ASSIGNED_TO_USER_ID,
+                           T.CREATED_AT, T.DUE_DATE, T.RESOLVED_AT, T.ASSIGNED_TO_USER_ID,
                            U.FULL_NAME AS CREATED_BY_NAME,
                            A.FULL_NAME AS ASSIGNED_TO_NAME
                     FROM BI_OJT.TICKETS T
@@ -993,6 +993,32 @@ namespace BI_TICKETING_SYSTEM.Pages
             hfSwalType.Value = "success";
             pnlSuccess.Visible = false;
             pnlError.Visible = false;
+        }
+
+        protected string GetAging(object createdAt, object resolvedAt, object status)
+        {
+            if (createdAt == DBNull.Value) return "0 Days";
+
+            DateTime start = Convert.ToDateTime(createdAt);
+            DateTime end = DateTime.Now;
+
+            string stat = status?.ToString();
+            if ((stat == "Resolved" || stat == "Closed") && resolvedAt != DBNull.Value)
+                end = Convert.ToDateTime(resolvedAt);
+
+        int days = (int)Math.Floor((end - start).TotalDays);
+            return days == 0 ? "Today" : $"{days} Days";
+        }
+
+        protected string GetSlaCssClass(object dueDate, object status)
+        {
+            if (dueDate == DBNull.Value || status?.ToString() == "Resolved" || status?.ToString() == "Closed")
+                return "";
+
+            if (Convert.ToDateTime(dueDate) < DateTime.Now)
+                return "text-danger font-weight-bold";
+
+            return "";
         }
 
         private void ShowError(string msg) 

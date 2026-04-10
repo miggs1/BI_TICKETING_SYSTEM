@@ -154,6 +154,8 @@
                                     <th>Created By</th>
                                     <th>Assigned To</th>
                                     <th>Date</th>
+                                    <th>Due Date</th>
+                                    <th>Aging</th>
                                     <th style="width:120px;">Actions</th>
                                 </tr>
                             </thead>
@@ -177,6 +179,14 @@
                             <td><%# Eval("CREATED_BY_NAME") %></td>
                             <td><%# string.IsNullOrEmpty(Eval("ASSIGNED_TO_NAME").ToString()) ? "<span style='color:#aaa;'>Unassigned</span>" : Eval("ASSIGNED_TO_NAME").ToString() %></td>
                             <td><%# Convert.ToDateTime(Eval("CREATED_AT")).ToString("MM/dd/yyyy") %></td>
+                            <td>
+                                <span class="<%# GetSlaCssClass(Eval("DUE_DATE"), Eval("STATUS")) %>">
+                                    <%# Eval("DUE_DATE") != DBNull.Value ? Convert.ToDateTime(Eval("DUE_DATE")).ToString("MM/dd/yyyy") : "Not Set" %>
+                                </span>
+                            </td>
+                            <td>
+                                <strong><%# GetAging(Eval("CREATED_AT"), Eval("RESOLVED_AT"), Eval("STATUS")) %></strong>
+                            </td>
                             <td>
                                 <asp:LinkButton runat="server" CommandName="ViewTicket"
                                     CommandArgument='<%# Eval("TICKET_ID") %>'
