@@ -156,7 +156,7 @@
                             <td>
                                 <asp:DropDownList ID="ddlRowStatus" runat="server" CssClass="dropdown-status"
                                     Visible='<%# Session["UserRole"] != null &&
-                                        (Session["UserRole"].ToString().ToLower() == "admin" || 
+                                        (Session["UserRole"].ToString().ToLower() == "admin" ||
                                         Session["UserRole"].ToString().ToLower() == "user") %>'
                                     OnSelectedIndexChanged="ddlRowStatus_Changed">
                                     <asp:ListItem Value="New">New</asp:ListItem>
@@ -165,7 +165,8 @@
                                     <asp:ListItem Value="Resolved">Resolved</asp:ListItem>
                                     <asp:ListItem Value="Closed">Closed</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || 
+                                <asp:PlaceHolder runat="server" 
+                                    Visible='<%# Session["UserRole"] == null ||
                                             (Session["UserRole"].ToString().ToLower() != "admin" && 
                                             Session["UserRole"].ToString().ToLower() != "user") %>'>
                                     <span class="badge <%# GetStatusBadge(Eval("STATUS").ToString()) %>" style="padding:5px 10px; border-radius:20px; font-size:11px;">
@@ -176,10 +177,12 @@
                             </td>
                             <td>
                                 <asp:DropDownList ID="ddlRowAssign" runat="server" CssClass="dropdown-assign"
-                                    Visible='<%# Session["UserRole"] != null && (Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user") %>'
+                                    Visible='<%# Session["UserRole"] != null && Session["UserRole"].ToString().ToLower() == "admin" %>'
                                     OnSelectedIndexChanged="ddlRowAssign_Changed">
                                 </asp:DropDownList>
-                                <asp:PlaceHolder runat="server" Visible='<%# Session["UserRole"] == null || (Session["UserRole"].ToString().ToLower() != "admin" && Session["UserRole"].ToString().ToLower() != "user") %>'>
+
+                                <asp:PlaceHolder runat="server" 
+                                    Visible='<%# Session["UserRole"] == null || Session["UserRole"].ToString().ToLower() != "admin" %>'>
                                     <%# string.IsNullOrEmpty(Eval("ASSIGNED_TO_NAME").ToString()) ? "<span style='color:#aaa;'>Unassigned</span>" : Eval("ASSIGNED_TO_NAME").ToString() %>
                                 </asp:PlaceHolder>
                             </td>
