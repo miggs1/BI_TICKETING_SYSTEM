@@ -167,6 +167,7 @@ namespace BI_TICKETING_SYSTEM.Pages
         {
             try
             {
+
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
@@ -195,52 +196,106 @@ namespace BI_TICKETING_SYSTEM.Pages
                         lblViewCreatedBy.Text = row["CREATED_BY_NAME"].ToString();
                         lblViewCreatedDate.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
                         lblViewAssignedTo.Text = string.IsNullOrEmpty(row["ASSIGNED_TO_NAME"].ToString()) ? "Unassigned" : row["ASSIGNED_TO_NAME"].ToString();
-                        lblViewPriority.Text = row["PRIORITY"] == DBNull.Value ? "N/A": System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(row["PRIORITY"]?.ToString().ToLower());
+                        lblViewPriority.Text = row["PRIORITY"] == DBNull.Value ? "N/A" : System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(row["PRIORITY"]?.ToString().ToLower());
 
                         try
                         {
-                            string attachmentPath = row["ATTACHMENT_PATH"].ToString();
-                            if (!string.IsNullOrEmpty(attachmentPath))
+                            string attachSql = @"
+                             SELECT ORIGINAL_FILE_NAME, SAVED_FILE_NAME, FILE_PATH, FILE_TYPE, FILE_SIZE, UPLOADED_BY, UPLOADED_AT
+                             FROM BI_OJT.ATTACHMENTS
+                             WHERE TICKET_ID = :ticketId
+                             ORDER BY UPLOADED_AT DESC";
+
+                            using (OracleCommand attachCmd = new OracleCommand(attachSql, conn))
                             {
-                                string resolvedUrl = ResolveUrl(attachmentPath);
-                                string fileName = System.IO.Path.GetFileName(attachmentPath);
-                                if (fileName.Length > 9 && fileName[8] == '_')
-                                    fileName = fileName.Substring(9);
-                                string ext = System.IO.Path.GetExtension(attachmentPath).ToLower();
-                                bool isImage = ext == ".jpg" || ext == ".jpeg" || ext == ".png";
+                                attachCmd.BindByName = true;
+                                attachCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
 
-                                lblAttachFileName.Text = fileName;
-                                lblAttachFileType.Text = ext.TrimStart('.').ToUpper();
-                                lblAttachUploadedBy.Text = row["CREATED_BY_NAME"].ToString();
-                                lblAttachUploadedAt.Text = Convert.ToDateTime(row["CREATED_AT"]).ToString("MM/dd/yyyy hh:mm tt");
-                                hlAttachDownload.NavigateUrl = resolvedUrl;
-                                hlAttachDownload.Target = "_blank";
+                                OracleDataAdapter attachDa = new OracleDataAdapter(attachCmd);
+                                DataTable attachDt = new DataTable();
+                                attachDa.Fill(attachDt);
 
-                                if (isImage)
+                                if (attachDt.Rows.Count > 0)
                                 {
-                                    imgAttachFullPreview.ImageUrl = resolvedUrl;
-                                    pnlAttachImagePreview.Visible = true;
+                                    pnlHasAttachment.Visible = true;
+                                    pnlNoAttachmentMsg.Visible = false;
+
+                                    DataRow attachRow = attachDt.Rows[0];
+
+                                    string attachmentPath = attachRow["FILE_PATH"]?.ToString();
+                                    string fileName = attachRow["ORIGINAL_FILE_NAME"]?.ToString();
+                                    string fileType = attachRow["FILE_TYPE"]?.ToString();
+                                    string resolvedUrl = ResolveUrl(attachmentPath);
+
+                                    string lowerPath = (attachmentPath ?? "").ToLower();
+                                    string lowerType = (fileType ?? "").ToLower();
+
+                                    bool isImage =
+                                        lowerPath.EndsWith(".jpg") || lowerPath.EndsWith(".jpeg") ||
+                                        lowerPath.EndsWith(".png") || lowerPath.EndsWith(".gif") ||
+                                        lowerPath.EndsWith(".bmp") || lowerPath.EndsWith(".webp") ||
+                                        lowerType.Contains("image");
+
+                                    lblAttachFileName.Text = string.IsNullOrWhiteSpace(fileName)
+                                        ? System.IO.Path.GetFileName(attachmentPath)
+                                        : fileName;
+
+                                    lblAttachFileType.Text = string.IsNullOrWhiteSpace(fileType)
+                                        ? System.IO.Path.GetExtension(attachmentPath)?.TrimStart('.').ToUpper()
+                                        : fileType;
+
+                                    string uploadedByName = row["CREATED_BY_NAME"]?.ToString();
+
+                                    if (attachRow["UPLOADED_BY"] != DBNull.Value)
+                                    {
+                                        string uploadedBySql = "SELECT FULL_NAME FROM BI_OJT.USERS WHERE USER_ID = :userId";
+                                        using (OracleCommand uploadedByCmd = new OracleCommand(uploadedBySql, conn))
+                                        {
+                                            uploadedByCmd.BindByName = true;
+                                            uploadedByCmd.Parameters.Add("userId", OracleDbType.Int32).Value =
+                                                Convert.ToInt32(attachRow["UPLOADED_BY"]);
+
+                                            object uploadedByResult = uploadedByCmd.ExecuteScalar();
+                                            if (uploadedByResult != null && uploadedByResult != DBNull.Value)
+                                                uploadedByName = uploadedByResult.ToString();
+                                        }
+                                    }
+                                    lblAttachUploadedBy.Text = string.IsNullOrWhiteSpace(uploadedByName) ? "-" : uploadedByName;
+                                    lblAttachUploadedAt.Text = attachRow["UPLOADED_AT"] == DBNull.Value
+                                        ? "-"
+                                        : Convert.ToDateTime(attachRow["UPLOADED_AT"]).ToString("yyyy-MM-dd HH:mm tt");
+
+                                    hlAttachDownload.NavigateUrl = resolvedUrl;
+                                    hlAttachDownload.Target = "_blank";
+
+                                    if (isImage)
+                                    {
+                                        imgAttachFullPreview.ImageUrl = resolvedUrl;
+                                        pnlAttachImagePreview.Visible = true;
+                                    }
+                                    else
+                                    {
+                                        imgAttachFullPreview.ImageUrl = "";
+                                        pnlAttachImagePreview.Visible = false;
+                                    }
                                 }
                                 else
                                 {
+                                    pnlHasAttachment.Visible = false;
+                                    pnlNoAttachmentMsg.Visible = true;
                                     pnlAttachImagePreview.Visible = false;
+                                    imgAttachFullPreview.ImageUrl = "";
+                                    hlAttachDownload.NavigateUrl = "";
                                 }
-
-                                pnlHasAttachment.Visible = true;
-                                pnlNoAttachmentMsg.Visible = false;
-                            }
-                            else
-                            {
-                                pnlHasAttachment.Visible = false;
-                                pnlNoAttachmentMsg.Visible = true;
-                                pnlAttachImagePreview.Visible = false;
-                            }
+                            }  
                         }
                         catch
                         {
                             pnlHasAttachment.Visible = false;
                             pnlNoAttachmentMsg.Visible = true;
                             pnlAttachImagePreview.Visible = false;
+                            imgAttachFullPreview.ImageUrl = "";
+                            hlAttachDownload.NavigateUrl = "";
                         }
 
                         hfViewTicketId.Value = ticketId.ToString();
