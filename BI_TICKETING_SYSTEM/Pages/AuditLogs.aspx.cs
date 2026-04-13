@@ -48,7 +48,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                             A.NEW_VALUE,
                             A.CREATED_AT
                         FROM AUDIT_LOGS A
-                        JOIN USERS U ON A.USER_ID = U.USER_ID
+                        LEFT JOIN USERS U ON A.USER_ID = U.USER_ID                        
                         WHERE 1=1";
 
                 if (!string.IsNullOrEmpty(ddlUser.SelectedValue) && ddlUser.SelectedValue != "0")
@@ -79,6 +79,30 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                         case "ALL_TICKET":
                             query += " AND A.TABLE_NAME = 'TICKETS'";
+                            break;
+
+                        case "SLA_CREATED":
+                            query += " AND A.ACTION = 'SLA_CREATED'";
+                            break;
+
+                        case "SLA_UPDATED":
+                            query += " AND A.ACTION = 'SLA_UPDATED'";
+                            break;
+
+                        case "SLA_BREACHED":
+                            query += " AND A.ACTION = 'SLA_BREACHED'";
+                            break;
+
+                        case "SLA_MET":
+                            query += " AND A.ACTION = 'SLA_MET'";
+                            break;
+
+                        case "SLA_MISSED":
+                            query += " AND A.ACTION = 'SLA_MISSED'";
+                            break;
+
+                        case "ALL_SLA":
+                            query += " AND A.ACTION IN ('SLA_CREATED', 'SLA_UPDATED', 'SLA_BREACHED', 'SLA_MET', 'SLA_MISSED')";
                             break;
                     }
 
@@ -135,6 +159,73 @@ namespace BI_TICKETING_SYSTEM.Pages
                     JObject newObj = TryParseJson(newJson);
                     string ticketNumber = (ticketId.HasValue && ticketMap.TryGetValue(ticketId.Value, out var t)) ? t : $"#{ticketId}";
                     bool splitOccurred = false;
+
+                    if (action == "SLA_CREATED")
+                    {
+                        string priority = newObj?["PRIORITY"]?.ToString();
+                        string dueDate = newObj?["DUE_DATE"]?.ToString();
+
+                        AddLogEntry(dtDisplay, row,
+                            $"Ticket {ticketNumber}: SLA Created -  Due Date {dueDate ?? "-"}");
+                        continue;
+                    }
+
+                    if (action == "SLA_UPDATED")
+                    {
+                        string oldPriority = oldObj?["PRIORITY"]?.ToString();
+                        string newPriority = newObj?["PRIORITY"]?.ToString();
+                        string oldDueDate = oldObj?["DUE_DATE"]?.ToString();
+                        string newDueDate = newObj?["DUE_DATE"]?.ToString();
+
+                        if (oldPriority != newPriority && oldDueDate != newDueDate)
+                        {
+                            AddLogEntry(dtDisplay, row,
+                                $"Ticket {ticketNumber}: SLA Updated -  Due Date changed from {oldDueDate ?? "-"} to {newDueDate ?? "-"}");
+                        }
+                        else if (oldPriority != newPriority)
+                        {
+                            AddLogEntry(dtDisplay, row,
+                                $"Ticket {ticketNumber}: SLA Updated - Priority changed from {oldPriority ?? "-"} to {newPriority ?? "-"}");
+                        }
+                        else if (oldDueDate != newDueDate)
+                        {
+                            AddLogEntry(dtDisplay, row,
+                                $"Ticket {ticketNumber}: SLA Updated - Due Date changed from {oldDueDate ?? "-"} to {newDueDate ?? "-"}");
+                        }
+                        else
+                        {
+                            AddLogEntry(dtDisplay, row, $"Ticket {ticketNumber}: SLA Updated");
+                        }
+
+                        continue;
+                    }
+
+                    if (action == "SLA_BREACHED")
+                    {
+                        string dueDate = newObj?["DUE_DATE"]?.ToString() ?? oldObj?["DUE_DATE"]?.ToString();
+
+                        AddLogEntry(dtDisplay, row,
+                            $"Ticket {ticketNumber}: SLA Breached / Overdue - Due Date {dueDate ?? "-"}");
+                        continue;
+                    }
+
+                    if (action == "SLA_MET")
+                    {
+                        string dueDate = newObj?["DUE_DATE"]?.ToString() ?? oldObj?["DUE_DATE"]?.ToString();
+
+                        AddLogEntry(dtDisplay, row,
+                            $"Ticket {ticketNumber}: SLA Met - resolved or closed before due date {dueDate ?? "-"}");
+                        continue;
+                    }
+
+                    if (action == "SLA_MISSED")
+                    {
+                        string dueDate = newObj?["DUE_DATE"]?.ToString() ?? oldObj?["DUE_DATE"]?.ToString();
+
+                        AddLogEntry(dtDisplay, row,
+                            $"Ticket {ticketNumber}: SLA Missed - resolved or closed after due date {dueDate ?? "-"}");
+                        continue;
+                    }
 
                     if (action == "DELETE_TICKET")
                     {
@@ -223,6 +314,8 @@ namespace BI_TICKETING_SYSTEM.Pages
                                     AddLogEntry(dtDisplay, row,
                                         $"Ticket {ticketNumber}: Status updated");
                                     break;
+
+
 
                                 default:
                                     string cleanAction = action.Replace("_", " ");

@@ -63,18 +63,16 @@ namespace BI_TICKETING_SYSTEM.Pages
                 {
                     conn.Open();
 
-                    //CREATED TWO FIELDS
-
                     string sql = @"
-                        SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
-                               T.CREATED_AT, T.UPDATED_AT, T.CREATED_BY_USER_ID, T.ASSIGNED_TO_USER_ID,
-                               T.DUE_DATE, T.RESOLVED_AT,
-                               U.FULL_NAME AS CREATED_BY_NAME, U.ROLE AS CREATED_BY_ROLE,
-                               A.FULL_NAME AS ASSIGNED_TO_NAME
-                        FROM BI_OJT.TICKETS T
-                        LEFT JOIN BI_OJT.USERS U ON T.CREATED_BY_USER_ID = U.USER_ID
-                        LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
-                        WHERE 1=1 ";
+                                    SELECT T.TICKET_ID, T.TICKET_NUMBER, T.TITLE, T.STATUS, T.PRIORITY,
+                                           T.CREATED_AT, T.UPDATED_AT, T.CREATED_BY_USER_ID, T.ASSIGNED_TO_USER_ID,
+                                           T.DUE_DATE, T.RESOLVED_AT,
+                                           U.FULL_NAME AS CREATED_BY_NAME, U.ROLE AS CREATED_BY_ROLE,
+                                           A.FULL_NAME AS ASSIGNED_TO_NAME
+                                    FROM BI_OJT.TICKETS T
+                                    LEFT JOIN BI_OJT.USERS U ON T.CREATED_BY_USER_ID = U.USER_ID
+                                    LEFT JOIN BI_OJT.USERS A ON T.ASSIGNED_TO_USER_ID = A.USER_ID
+                                    WHERE 1=1 ";
 
                     if (role == "user")
                         sql += " AND T.CREATED_BY_USER_ID = :userId ";
@@ -90,52 +88,68 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     sql += " ORDER BY T.CREATED_AT DESC ";
 
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.BindByName = true;
-
-                    if (role == "user")
-                        cmd.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
-
-                    if (!string.IsNullOrEmpty(search))
-                        cmd.Parameters.Add("search", OracleDbType.Varchar2).Value = "%" + search + "%";
-
-                    if (!string.IsNullOrEmpty(filterStatus))
-                        cmd.Parameters.Add("filterStatus", OracleDbType.Varchar2).Value = filterStatus;
-
-                    if (!string.IsNullOrEmpty(filterPriority))
-                        cmd.Parameters.Add("filterPriority", OracleDbType.Varchar2).Value = filterPriority;
-
-                    OracleDataAdapter da = new OracleDataAdapter(cmd);
-                    DataTable dt = new DataTable();
-                    da.Fill(dt);
-
-                    int totalRecords = dt.Rows.Count;
-                    int totalPages = (int)Math.Ceiling((double)totalRecords / PageSize);
-                    if (CurrentPage > totalPages && totalPages > 0) CurrentPage = totalPages;
-
-                    int startIndex = (CurrentPage - 1) * PageSize;
-                    DataTable pagedDt = dt.Clone();
-                    for (int i = startIndex; i < Math.Min(startIndex + PageSize, totalRecords); i++)
-                        pagedDt.ImportRow(dt.Rows[i]);
-
-                    if (pagedDt.Rows.Count == 0)
+                    using (OracleCommand cmd = new OracleCommand(sql, conn))
                     {
-                        pnlEmpty.Visible = true;
-                        rptTickets.Visible = false;
-                    }
-                    else
-                    {
-                        pnlEmpty.Visible = false;
-                        rptTickets.Visible = true;
-                        rptTickets.DataSource = pagedDt;
-                        rptTickets.DataBind();
-                    }
+                        cmd.BindByName = true;
 
-                    lblPaginationInfo.Text = totalRecords == 0 ? "No records found" :
-                        $"Showing {startIndex + 1}–{Math.Min(startIndex + PageSize, totalRecords)} of {totalRecords} tickets";
+                        if (role == "user")
+                            cmd.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
 
-                    btnPrev.Enabled = CurrentPage > 1;
-                    btnNext.Enabled = CurrentPage < totalPages;
+                        if (!string.IsNullOrEmpty(search))
+                            cmd.Parameters.Add("search", OracleDbType.Varchar2).Value = "%" + search + "%";
+
+                        if (!string.IsNullOrEmpty(filterStatus))
+                            cmd.Parameters.Add("filterStatus", OracleDbType.Varchar2).Value = filterStatus;
+
+                        if (!string.IsNullOrEmpty(filterPriority))
+                            cmd.Parameters.Add("filterPriority", OracleDbType.Varchar2).Value = filterPriority;
+
+                        OracleDataAdapter da = new OracleDataAdapter(cmd);
+                        DataTable dt = new DataTable();
+                        da.Fill(dt);
+
+                        foreach (DataRow row in dt.Rows)
+                        {
+                            int ticketId = Convert.ToInt32(row["TICKET_ID"]);
+                            string status = row["STATUS"]?.ToString() ?? "";
+                            DateTime? dueDate = row["DUE_DATE"] == DBNull.Value
+                                ? (DateTime?)null
+                                : Convert.ToDateTime(row["DUE_DATE"]);
+
+                            SLAHelper.CheckAndLogSlaBreach(ticketId, dueDate, status);
+                        }
+
+                        int totalRecords = dt.Rows.Count;
+                        int totalPages = (int)Math.Ceiling((double)totalRecords / PageSize);
+                        if (CurrentPage > totalPages && totalPages > 0)
+                            CurrentPage = totalPages;
+
+                        int startIndex = (CurrentPage - 1) * PageSize;
+                        DataTable pagedDt = dt.Clone();
+
+                        for (int i = startIndex; i < Math.Min(startIndex + PageSize, totalRecords); i++)
+                            pagedDt.ImportRow(dt.Rows[i]);
+
+                        if (pagedDt.Rows.Count == 0)
+                        {
+                            pnlEmpty.Visible = true;
+                            rptTickets.Visible = false;
+                        }
+                        else
+                        {
+                            pnlEmpty.Visible = false;
+                            rptTickets.Visible = true;
+                            rptTickets.DataSource = pagedDt;
+                            rptTickets.DataBind();
+                        }
+
+                        lblPaginationInfo.Text = totalRecords == 0
+                            ? "No records found"
+                            : $"Showing {startIndex + 1}–{Math.Min(startIndex + PageSize, totalRecords)} of {totalRecords} tickets";
+
+                        btnPrev.Enabled = CurrentPage > 1;
+                        btnNext.Enabled = CurrentPage < totalPages;
+                    }
                 }
             }
             catch (Exception ex)
@@ -274,6 +288,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                             checkCmd.BindByName = true;
                             checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                             object assignedId = checkCmd.ExecuteScalar();
+
                             if (assignedId == null || assignedId == DBNull.Value)
                             {
                                 ShowError("Please assign a support staff before changing the status.");
@@ -285,25 +300,40 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
 
-                    string sql = @"UPDATE BI_OJT.TICKETS 
-                                   SET STATUS = :status, UPDATED_AT = SYSDATE";
+                    DateTime? dueDate = null;
+                    string infoSql = @"SELECT DUE_DATE
+                               FROM BI_OJT.TICKETS
+                               WHERE TICKET_ID = :ticketId";
+
+                    using (OracleCommand infoCmd = new OracleCommand(infoSql, conn))
+                    {
+                        infoCmd.BindByName = true;
+                        infoCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                        using (OracleDataReader reader = infoCmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                dueDate = reader["DUE_DATE"] == DBNull.Value
+                                    ? (DateTime?)null
+                                    : Convert.ToDateTime(reader["DUE_DATE"]);
+                            }
+                        }
+                    }
+
+                    string sql = @"UPDATE BI_OJT.TICKETS
+                           SET STATUS = :status, UPDATED_AT = SYSDATE";
 
                     if (newStatus.Equals("Resolved", StringComparison.OrdinalIgnoreCase))
-                    {
                         sql += ", RESOLVED_AT = SYSDATE";
-                    }
                     else if (newStatus.Equals("Closed", StringComparison.OrdinalIgnoreCase))
-                    {
                         sql += ", CLOSED_AT = SYSDATE";
-                    }
                     else if (newStatus.Equals("New", StringComparison.OrdinalIgnoreCase))
-                    {
                         sql += ", ASSIGNED_TO_USER_ID = NULL";
-                    }
 
                     sql += " WHERE TICKET_ID = :ticketId";
 
-                    using (var cmd = new OracleCommand(sql, conn))
+                    using (OracleCommand cmd = new OracleCommand(sql, conn))
                     {
                         cmd.BindByName = true;
                         cmd.Parameters.Add("status", OracleDbType.Varchar2).Value = newStatus;
@@ -316,6 +346,13 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     InsertStatusRemark(ticketId, newStatus, conn);
 
+                    SLAHelper.CheckAndLogSlaCompletion(
+                        CurrentUserID,
+                        ticketId,
+                        dueDate,
+                        newStatus
+                    );
+
                     ShowSuccess("Status updated successfully!");
                     LoadTickets();
                 }
@@ -326,7 +363,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                 LoadTickets();
             }
         }
-
         protected void ddlRowAssign_Changed(object sender, EventArgs e)
         {
             DropDownList ddl = (DropDownList)sender;
@@ -411,23 +447,66 @@ namespace BI_TICKETING_SYSTEM.Pages
                 {
                     conn.Open();
 
+                    string oldPriority = "";
+                    DateTime? oldDueDate = null;
+                    DateTime createdAt = DateTime.Now;
+
+                    string infoSql = @"SELECT PRIORITY, DUE_DATE, CREATED_AT
+                               FROM BI_OJT.TICKETS
+                               WHERE TICKET_ID = :ticketId";
+
+                    using (OracleCommand infoCmd = new OracleCommand(infoSql, conn))
+                    {
+                        infoCmd.BindByName = true;
+                        infoCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                        using (OracleDataReader reader = infoCmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                oldPriority = reader["PRIORITY"]?.ToString() ?? "";
+                                oldDueDate = reader["DUE_DATE"] == DBNull.Value
+                                    ? (DateTime?)null
+                                    : Convert.ToDateTime(reader["DUE_DATE"]);
+                                createdAt = reader["CREATED_AT"] == DBNull.Value
+                                    ? DateTime.Now
+                                    : Convert.ToDateTime(reader["CREATED_AT"]);
+                            }
+                        }
+                    }
+
+                    DateTime? newDueDate = SLAHelper.CalculateSlaDueDate(newPriority, createdAt);
+
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
 
-                    string sql = @"UPDATE BI_OJT.TICKETS 
-                                   SET PRIORITY = :priority, UPDATED_AT = SYSDATE 
-                                   WHERE TICKET_ID = :ticketId";
+                    string updateSql = @"UPDATE BI_OJT.TICKETS
+                                 SET PRIORITY = :priority,
+                                     DUE_DATE = :dueDate,
+                                     UPDATED_AT = SYSDATE
+                                 WHERE TICKET_ID = :ticketId";
 
-                    using (var cmd = new OracleCommand(sql, conn))
+                    using (OracleCommand cmd = new OracleCommand(updateSql, conn))
                     {
                         cmd.BindByName = true;
                         cmd.Parameters.Add("priority", OracleDbType.Varchar2).Value =
                             string.IsNullOrEmpty(newPriority) ? (object)DBNull.Value : newPriority;
+                        cmd.Parameters.Add("dueDate", OracleDbType.Date).Value =
+                            newDueDate.HasValue ? (object)newDueDate.Value : DBNull.Value;
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                         cmd.ExecuteNonQuery();
                     }
 
                     var newSnap = GetTicketSnapshot(ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "UPDATE_PRIORITY", "TICKETS", ticketId, oldSnap, newSnap);
+
+                    SLAHelper.LogSlaUpdated(
+                        CurrentUserID,
+                        ticketId,
+                        oldPriority,
+                        newPriority,
+                        oldDueDate,
+                        newDueDate
+                    );
 
                     ShowSuccess("Priority updated successfully!");
                     LoadTickets();
@@ -439,6 +518,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 LoadTickets();
             }
         }
+
         protected void btnCreateTicket_Click(object sender, EventArgs e)
         {
             if (!Page.IsValid) return;
@@ -447,7 +527,7 @@ namespace BI_TICKETING_SYSTEM.Pages
             {
                 string priority = ddlCreatePriority.SelectedValue.Trim();
                 DateTime createdDate = DateTime.Now;
-                DateTime? slaDueDate = CalculateSlaDueDate(priority, createdDate);
+                DateTime? slaDueDate = SLAHelper.CalculateSlaDueDate(priority, createdDate);
 
                 if (!slaDueDate.HasValue)
                 {
@@ -465,7 +545,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                     return;
                 }
 
-
                 string savedFileName = null;
                 string relativePath = null;
                 string originalFileName = null;
@@ -474,7 +553,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 {
                     var fileInfo = SaveAttachmentDetails(fuAttachment);
                     originalFileName = fileInfo.origName;
-                    savedFileName = fileInfo.savedName; 
+                    savedFileName = fileInfo.savedName;
                     relativePath = fileInfo.fullPath;
                 }
 
@@ -486,7 +565,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                     {
                         try
                         {
-                            
                             string year = DateTime.Now.Year.ToString();
 
                             OracleCommand seqCmd = new OracleCommand(
@@ -497,19 +575,18 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                             string ticketNumber = $"TKT-{year}-{((int)nextNum).ToString("D4")}";
 
-                            
                             OracleCommand idCmd = new OracleCommand(
                                 "SELECT BI_OJT.TICKETS_SEQ.NEXTVAL FROM DUAL", conn);
                             idCmd.Transaction = txn;
                             idCmd.BindByName = true;
                             decimal ticketId = Convert.ToDecimal(idCmd.ExecuteScalar());
-                            
-                            string sql = @"INSERT INTO BI_OJT.TICKETS 
-                    (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, PRIORITY,
-                     ASSIGNED_TO_USER_ID, CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT, DUE_DATE)
-                    VALUES 
-                    (:ticketId, :ticketNumber, :title, :description, :status, :priority,
-                     :assignedTo, :createdBy, SYSDATE, SYSDATE, :dueDate)";
+
+                            string sql = @"INSERT INTO BI_OJT.TICKETS
+                        (TICKET_ID, TICKET_NUMBER, TITLE, DESCRIPTION, STATUS, PRIORITY,
+                         ASSIGNED_TO_USER_ID, CREATED_BY_USER_ID, CREATED_AT, UPDATED_AT, DUE_DATE)
+                        VALUES
+                        (:ticketId, :ticketNumber, :title, :description, :status, :priority,
+                         :assignedTo, :createdBy, SYSDATE, SYSDATE, :dueDate)";
 
                             OracleCommand cmd = new OracleCommand(sql, conn);
                             cmd.Transaction = txn;
@@ -529,11 +606,11 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                             if (fuAttachment.HasFile)
                             {
-                                string attachSql = @"INSERT INTO BI_OJT.ATTACHMENTS 
-                        (TICKET_ID, ORIGINAL_FILE_NAME, SAVED_FILE_NAME, 
-                         FILE_PATH, FILE_SIZE, FILE_TYPE, UPLOADED_BY, UPLOADED_AT) 
-                        VALUES (:ticketId, :origName, :savedName, 
-                                :path, :fileSize, :fileType, :userId, SYSDATE)";
+                                string attachSql = @"INSERT INTO BI_OJT.ATTACHMENTS
+                            (TICKET_ID, ORIGINAL_FILE_NAME, SAVED_FILE_NAME,
+                             FILE_PATH, FILE_SIZE, FILE_TYPE, UPLOADED_BY, UPLOADED_AT)
+                            VALUES (:ticketId, :origName, :savedName,
+                                    :path, :fileSize, :fileType, :userId, SYSDATE)";
 
                                 OracleCommand attachCmd = new OracleCommand(attachSql, conn);
                                 attachCmd.Transaction = txn;
@@ -550,15 +627,20 @@ namespace BI_TICKETING_SYSTEM.Pages
                                 attachCmd.ExecuteNonQuery();
                             }
 
-                            
                             var newSnap = GetTicketSnapshot((int)ticketId, conn);
 
                             InsertStatusRemark((int)ticketId, "New", conn);
 
-                            
                             txn.Commit();
+
                             AuditHelper.LogAction(CurrentUserID, "CREATE_TICKET", "TICKETS", (int)ticketId, null, newSnap);
 
+                            SLAHelper.LogSlaCreated(
+                                CurrentUserID,
+                                (int)ticketId,
+                                priority,
+                                dueDate
+                            );
 
                             if (fuAttachment.HasFile)
                             {
@@ -576,18 +658,10 @@ namespace BI_TICKETING_SYSTEM.Pages
                                 AuditHelper.LogAction(CurrentUserID, "UPLOAD_ATTACHMENT", "ATTACHMENTS", (int)ticketId, null, attachmentSnap);
                             }
 
-                            
                             txtTitle.Text = "";
                             txtDescription.Text = "";
                             txtDueDate.Text = "";
                             ddlCreatePriority.SelectedIndex = 0;
-
-                            
-                            //EmailHelper.SendEmail(
-                            //    "angjandell24@gmail.com",
-                            //    $"New Ticket Submitted: {ticketNumber}",
-                            //    $"A new ticket has been submitted by {CurrentUserName}. <br/><b>Title:</b> {txtTitle.Text}"
-                            //);
 
                             ShowSuccess($"Ticket {ticketNumber} submitted successfully!");
                             Response.Redirect(Request.RawUrl);
@@ -1238,6 +1312,7 @@ namespace BI_TICKETING_SYSTEM.Pages
             try
             {
                 int ticketId = Convert.ToInt32(hfEditTicketId.Value);
+
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
@@ -1261,30 +1336,69 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     var oldSnap = GetTicketSnapshot(ticketId, conn);
 
-                    string sql = @"UPDATE BI_OJT.TICKETS 
-                                   SET TITLE = :title, DESCRIPTION = :description, UPDATED_AT = SYSDATE";
+                    DateTime? oldDueDate = null;
+                    string ticketInfoSql = @"SELECT DUE_DATE
+                                     FROM BI_OJT.TICKETS
+                                     WHERE TICKET_ID = :ticketId";
 
-                    bool hasDueDate = !string.IsNullOrWhiteSpace(txtEditDueDate.Text) && DateTime.TryParse(txtEditDueDate.Text, out _);
+                    using (OracleCommand infoCmd = new OracleCommand(ticketInfoSql, conn))
+                    {
+                        infoCmd.BindByName = true;
+                        infoCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                        using (OracleDataReader reader = infoCmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                oldDueDate = reader["DUE_DATE"] == DBNull.Value
+                                    ? (DateTime?)null
+                                    : Convert.ToDateTime(reader["DUE_DATE"]);
+                            }
+                        }
+                    }
+
+                    string sql = @"UPDATE BI_OJT.TICKETS
+                           SET TITLE = :title, DESCRIPTION = :description, UPDATED_AT = SYSDATE";
+
+                    DateTime parsedEditDueDate = DateTime.MinValue;
+                    bool hasDueDate = !string.IsNullOrWhiteSpace(txtEditDueDate.Text)
+                                      && DateTime.TryParse(txtEditDueDate.Text, out parsedEditDueDate);
+
                     if (hasDueDate)
                         sql += ", DUE_DATE = :dueDate";
 
-
-
                     sql += " WHERE TICKET_ID = :ticketId";
 
-                    using (var cmd = new OracleCommand(sql, conn))
+                    using (OracleCommand cmd = new OracleCommand(sql, conn))
                     {
                         cmd.BindByName = true;
                         cmd.Parameters.Add("title", OracleDbType.Varchar2).Value = txtEditTitle.Text.Trim();
                         cmd.Parameters.Add("description", OracleDbType.Clob).Value = txtEditDescription.Text.Trim();
-                        if (!string.IsNullOrWhiteSpace(txtEditDueDate.Text) && DateTime.TryParse(txtEditDueDate.Text, out DateTime parsedDueDate))
-                            cmd.Parameters.Add("dueDate", OracleDbType.Date).Value = parsedDueDate;
+
+                        if (hasDueDate)
+                            cmd.Parameters.Add("dueDate", OracleDbType.Date).Value = parsedEditDueDate;
+
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                         cmd.ExecuteNonQuery();
                     }
 
                     var newSnap = GetTicketSnapshot(ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId, oldSnap, newSnap);
+
+                    if (hasDueDate)
+                    {
+                        bool dueDateChanged = !oldDueDate.HasValue || oldDueDate.Value != parsedEditDueDate;
+
+                        if (dueDateChanged)
+                        {
+                            SLAHelper.LogSlaDueDateUpdated(
+                                CurrentUserID,
+                                ticketId,
+                                oldDueDate,
+                                parsedEditDueDate
+                            );
+                        }
+                    }
 
                     hfShowModal.Value = "";
                     ShowSuccess("Ticket updated successfully!");
@@ -1297,7 +1411,6 @@ namespace BI_TICKETING_SYSTEM.Pages
                 ShowError("Error updating ticket: " + ex.Message);
             }
         }
-
         private void DeleteTicket(int ticketId)
         {
             try
@@ -1426,16 +1539,16 @@ namespace BI_TICKETING_SYSTEM.Pages
 
         private Dictionary<string, object> GetTicketSnapshot(int ticketId, OracleConnection conn)
         {
-            string sql = @"SELECT TITLE, DESCRIPTION, STATUS, CREATED_BY_USER_ID, ASSIGNED_TO_USER_ID, PRIORITY
+            string sql = @"SELECT TITLE, DESCRIPTION, STATUS, CREATED_BY_USER_ID, ASSIGNED_TO_USER_ID, PRIORITY, DUE_DATE
                    FROM BI_OJT.TICKETS
                    WHERE TICKET_ID = :ticketId";
 
-            using (var cmd = new OracleCommand(sql, conn))
+            using (OracleCommand cmd = new OracleCommand(sql, conn))
             {
                 cmd.BindByName = true;
                 cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
 
-                using (var reader = cmd.ExecuteReader())
+                using (OracleDataReader reader = cmd.ExecuteReader())
                 {
                     if (!reader.Read()) return null;
 
@@ -1446,6 +1559,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                     snap["CREATED_BY_USER_ID"] = reader["CREATED_BY_USER_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["CREATED_BY_USER_ID"]);
                     snap["ASSIGNED_TO_USER_ID"] = reader["ASSIGNED_TO_USER_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["ASSIGNED_TO_USER_ID"]);
                     snap["PRIORITY"] = reader["PRIORITY"] == DBNull.Value ? null : reader["PRIORITY"].ToString();
+                    snap["DUE_DATE"] = reader["DUE_DATE"] == DBNull.Value ? null : Convert.ToDateTime(reader["DUE_DATE"]).ToString("MM/dd/yyyy hh:mm tt");
 
                     return snap;
                 }
@@ -1565,114 +1679,6 @@ namespace BI_TICKETING_SYSTEM.Pages
         {
             CurrentPage++;
             LoadTickets();
-        }
-
-        //march 27, 2026 - 00:40
-        // april 8 - changed
-        private DateTime? CalculateSlaDueDate(string priority, DateTime startDate)
-        {
-            switch (priority?.Trim().ToLower())
-            {
-                case "urgent":
-                    return CalculateSlaWorkingHours(startDate, 1);
-
-                case "high":
-                    return GetEndOfWorkingDay(startDate);
-
-                case "medium":
-                    return GetNextWorkingDay(startDate).Date.AddHours(17);
-
-                case "low":
-                    return GetNextWorkingDay(GetNextWorkingDay(startDate)).Date.AddHours(17);
-
-                default:
-                    return null;
-            }
-        }
-
-        private DateTime CalculateSlaWorkingHours(DateTime startDate, double workingHours)
-        {
-            DateTime current = NormalizeToWorkingHours(startDate);
-            double hoursRemaining = workingHours;
-
-            while (hoursRemaining > 0)
-            {
-                if (current.DayOfWeek == DayOfWeek.Saturday)
-                {
-                    current = current.AddDays(2).Date.AddHours(8);
-                    continue;
-                }
-
-                if (current.DayOfWeek == DayOfWeek.Sunday)
-                {
-                    current = current.AddDays(1).Date.AddHours(8);
-                    continue;
-                }
-
-                DateTime workEnd = current.Date.AddHours(17);
-                double hoursLeftToday = (workEnd - current).TotalHours;
-
-                if (hoursRemaining <= hoursLeftToday)
-                {
-                    current = current.AddHours(hoursRemaining);
-                    hoursRemaining = 0;
-                }
-                else
-                {
-                    hoursRemaining -= hoursLeftToday;
-                    current = current.AddDays(1).Date.AddHours(8);
-                }
-            }
-
-            return current;
-        }
-
-        //Helpers 
-        private DateTime NormalizeToWorkingHours(DateTime dateTime)
-        {
-            if (dateTime.DayOfWeek == DayOfWeek.Saturday)
-                return dateTime.AddDays(2).Date.AddHours(8);
-
-            if (dateTime.DayOfWeek == DayOfWeek.Sunday)
-                return dateTime.AddDays(1).Date.AddHours(8);
-
-            if (dateTime.TimeOfDay < TimeSpan.FromHours(8))
-                return dateTime.Date.AddHours(8);
-
-            if (dateTime.TimeOfDay >= TimeSpan.FromHours(17))
-                return GetNextWorkingDay(dateTime).Date.AddHours(8);
-
-            return dateTime;
-        }
-
-        private DateTime GetNextWorkingDay(DateTime date)
-        {
-            DateTime nextDay = date.Date.AddDays(1);
-
-            while (nextDay.DayOfWeek == DayOfWeek.Saturday || nextDay.DayOfWeek == DayOfWeek.Sunday)
-            {
-                nextDay = nextDay.AddDays(1);
-            }
-
-            return nextDay;
-        }
-
-        private DateTime GetEndOfWorkingDay(DateTime startDate)
-        {
-            DateTime current = NormalizeToWorkingHours(startDate);
-            return current.Date.AddHours(17);
-        }
-
-        private int GetSlaHoursByPriority(string priority)
-        {
-            switch (priority?.Trim().ToLower())
-            {
-                case "urgent": return 1;
-                case "high": return 9;     
-                case "medium": return 18;  
-                case "low": return 27;     
-                default: return 0;
-            }
         }
 
         //how many days a ticket has been opened calculator
