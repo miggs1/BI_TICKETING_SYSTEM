@@ -291,7 +291,8 @@
                     <div class="row mb-3">
                         <div class="col-12">
                             <label class="form-label">Attach a File (Optional)</label>
-                            <asp:FileUpload ID="fuAttachment" runat="server" CssClass="form-control" />
+                            <asp:FileUpload ID="fuAttachment" runat="server" CssClass="form-control" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" />
+                            <small class="text-muted">Allowed file types: jpg, jpeg, png, pdf, doc, docx</small>
                         </div>
                     </div>
                     <div class="row mb-3">

@@ -15,6 +15,19 @@ namespace BI_TICKETING_SYSTEM.Pages
     public partial class Tickets : Page
     {
         private int PageSize = 10;
+
+        private static readonly HashSet<string> AllowedAttachmentExtensions = 
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { 
+                ".jpg",
+                ".jpeg", 
+                ".png", 
+                ".pdf", 
+                ".doc", 
+                ".docx"
+            };
+
+        private const int MaxAttachmentSizeBytes = 10 * 1024 * 1024; //10 MB
         private int CurrentPage
         {
             get { return ViewState["CurrentPage"] != null ? (int)ViewState["CurrentPage"] : 1; }
@@ -551,6 +564,20 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                 if (fuAttachment.HasFile)
                 {
+                    if (!IsAllowedAttachmentType(fuAttachment))
+                    {
+                        ShowError("Invalid file type. Allowed file types are: jpg, jpeg, png, pdf, docs, docx.");
+                        hfShowModal.Value = "create";
+                        return;
+                    }
+
+                    if (!IsAllowedAttachmentSize(fuAttachment))
+                    {
+                        ShowError("File size must not exceed 10 MB.");
+                        hfShowModal.Value = "create";
+                        return;
+                    }
+
                     var fileInfo = SaveAttachmentDetails(fuAttachment);
                     originalFileName = fileInfo.origName;
                     savedFileName = fileInfo.savedName;
@@ -621,7 +648,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                                 attachCmd.Parameters.Add("savedName", OracleDbType.Varchar2).Value = savedFileName;
                                 attachCmd.Parameters.Add("path", OracleDbType.Varchar2).Value = relativePath;
                                 attachCmd.Parameters.Add("fileSize", OracleDbType.Int32).Value = fuAttachment.PostedFile.ContentLength;
-                                attachCmd.Parameters.Add("fileType", OracleDbType.Varchar2).Value = fuAttachment.PostedFile.ContentType;
+                                attachCmd.Parameters.Add("fileType", OracleDbType.Varchar2).Value = System.IO.Path.GetExtension(fuAttachment.FileName).ToLower();
                                 attachCmd.Parameters.Add("userId", OracleDbType.Int32).Value = CurrentUserID;
 
                                 attachCmd.ExecuteNonQuery();
@@ -651,7 +678,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                                     ["SAVED_FILE_NAME"] = savedFileName,
                                     ["FILE_PATH"] = relativePath,
                                     ["FILE_SIZE"] = fuAttachment.PostedFile.ContentLength,
-                                    ["FILE_TYPE"] = fuAttachment.PostedFile.ContentType,
+                                    ["FILE_TYPE"] = System.IO.Path.GetExtension(fuAttachment.FileName).ToLower(),
                                     ["UPLOADED_BY"] = CurrentUserID,
                                 };
 
@@ -1727,6 +1754,24 @@ namespace BI_TICKETING_SYSTEM.Pages
                 return (originalFileName, savedFileName, "~/Uploads/Tickets/" + savedFileName);
             }
             return (null, null, null);
+        }
+
+        private bool IsAllowedAttachmentType(FileUpload fu)
+        {
+            if (fu == null || !fu.HasFile)
+                return false;
+            
+            string extension = System.IO.Path.GetExtension(fu.FileName);
+            return AllowedAttachmentExtensions.Contains(extension);
+
+        }
+
+        private bool IsAllowedAttachmentSize(FileUpload fu)
+        {
+            if (fu == null || !fu.HasFile)
+                return false;
+
+            return fu.PostedFile.ContentLength <= MaxAttachmentSizeBytes;
         }
 
 
