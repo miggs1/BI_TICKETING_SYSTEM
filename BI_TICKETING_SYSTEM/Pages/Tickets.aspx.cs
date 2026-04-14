@@ -1321,8 +1321,24 @@ namespace BI_TICKETING_SYSTEM.Pages
                         txtEditDueDate.Text = row["DUE_DATE"] != DBNull.Value
                             ? Convert.ToDateTime(row["DUE_DATE"]).ToString("yyyy-MM-dd")
                             : string.Empty;
+                        string attachmentSql = @"
+                            SELECT ORIGINAL_FILE_NAME
+                            FROM BI_OJT.ATTACHMENTS
+                            WHERE TICKET_ID = :ticketId
+                            ORDER BY UPLOADED_AT DESC";
 
-                        hfShowModal.Value = "edit";
+                        using (OracleCommand attachCmd = new OracleCommand(attachmentSql, conn))
+                        {
+                            attachCmd.BindByName = true;
+                            attachCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                            object attachmentResult = attachCmd.ExecuteScalar();
+                            if (attachmentResult != null && attachmentResult != DBNull.Value)
+                                lblEditAttachmentStatus.Text = attachmentResult.ToString();
+                            else
+                                lblEditAttachmentStatus.Text = "No attachment uploaded";
+                        }
+                            hfShowModal.Value = "edit";
                     }
                 }
             }
@@ -1408,7 +1424,101 @@ namespace BI_TICKETING_SYSTEM.Pages
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                         cmd.ExecuteNonQuery();
                     }
+                    if (fuEditAttachment.HasFile)
+                    {
+                        if (!IsAllowedAttachmentType(fuEditAttachment))
+                        {
+                            hfShowModal.Value = "edit";
+                            ShowError("Invalid file type. Allowed file types are: jpg, jpeg, png, pdf, doc, docx.");
+                            return;
+                        }
+                        string checkAttachmentSql = @"
+                            SELECT ATTACHMENT_ID, FILE_PATH, SAVED_FILE_NAME
+                            FROM BI_OJT.ATTACHMENTS
+                            WHERE TICKET_ID = :ticketId
+                            ORDER BY UPLOADED_AT DESC";
 
+                        int existingAttachmentId = 0;
+                        string oldFilePath = null;
+                        string oldSavedFileName = null;
+
+                        using (OracleCommand checkCmd = new OracleCommand(checkAttachmentSql, conn))
+                        {
+                            checkCmd.BindByName = true;
+                            checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+
+                            using (OracleDataReader reader = checkCmd.ExecuteReader())
+                            {
+                                if (reader.Read())
+                                {
+                                    existingAttachmentId = Convert.ToInt32(reader["ATTACHMENT_ID"]);
+                                    oldFilePath = reader["FILE_PATH"] == DBNull.Value ? null : reader["FILE_PATH"].ToString();
+                                    oldSavedFileName = reader["SAVED_FILE_NAME"] == DBNull.Value ? null : reader["SAVED_FILE_NAME"].ToString();
+                                }
+                            }
+                        }
+                        var fileInfo = SaveAttachmentDetails(fuEditAttachment);
+                        string newOriginalFileName = fileInfo.origName;
+                        string newSavedFileName = fileInfo.savedName;
+                        string newRelativePath = fileInfo.fullPath;
+                        string newFileType = System.IO.Path.GetExtension(fuEditAttachment.FileName).ToLower();
+                        int newFileSize = fuEditAttachment.PostedFile.ContentLength;
+
+                        if (existingAttachmentId > 0)
+                        {
+                            string updateAttachmentSql = @"
+                                UPDATE BI_OJT.ATTACHMENTS
+                                SET ORIGINAL_FILE_NAME = :origName,
+                                    SAVED_FILE_NAME = :savedName,
+                                    FILE_PATH = :filePath,
+                                    FILE_SIZE = :fileSize,
+                                    FILE_TYPE = :fileType,
+                                    UPLOADED_BY = :uploadedBy,
+                                    UPLOADED_AT = SYSDATE
+                               WHERE ATTACHMENT_ID = :attachmentId";
+
+                            using (OracleCommand updateAttachCmd = new OracleCommand(updateAttachmentSql, conn))
+                            {
+                                updateAttachCmd.BindByName = true;
+                                updateAttachCmd.Parameters.Add("origName", OracleDbType.Varchar2).Value = newOriginalFileName;
+                                updateAttachCmd.Parameters.Add("savedName", OracleDbType.Varchar2).Value = newSavedFileName;
+                                updateAttachCmd.Parameters.Add("filePath", OracleDbType.Varchar2).Value = newRelativePath;
+                                updateAttachCmd.Parameters.Add("fileSize", OracleDbType.Int32).Value = newFileSize;
+                                updateAttachCmd.Parameters.Add("fileType", OracleDbType.Varchar2).Value = newFileType;
+                                updateAttachCmd.Parameters.Add("uploadedBy", OracleDbType.Int32).Value = CurrentUserID;
+                                updateAttachCmd.Parameters.Add("attachmentId", OracleDbType.Int32).Value = existingAttachmentId;
+                                updateAttachCmd.ExecuteNonQuery();
+                            }
+                            if (!string.IsNullOrWhiteSpace(oldFilePath))
+                            {
+                                string oldPhysicalPath = Server.MapPath(oldFilePath);
+                                if (System.IO.File.Exists(oldPhysicalPath))
+                                    System.IO.File.Delete(oldPhysicalPath);
+                            }
+                        }
+                        else
+                        {
+                            string insertAttachmentSql = @"
+                                INSERT INTO BI_OJT.ATTACHMENTS
+                                (TICKET_ID, ORIGINAL_FILE_NAME, SAVED_FILE_NAME, FILE_PATH, FILE_SIZE, FILE_TYPE, UPLOADED_BY, UPLOADED_AT)
+                                VALUES
+                                (:ticketId, :origName, :savedName, :filePath, :fileSize, :fileType, :uploadedBy, SYSDATE)";
+
+                            using (OracleCommand insertAttachCmd = new OracleCommand(insertAttachmentSql, conn))
+                            {
+                                insertAttachCmd.BindByName = true;
+                                insertAttachCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                                insertAttachCmd.Parameters.Add("origName", OracleDbType.Varchar2).Value = newOriginalFileName;
+                                insertAttachCmd.Parameters.Add("savedName", OracleDbType.Varchar2).Value = newSavedFileName;
+                                insertAttachCmd.Parameters.Add("filePath", OracleDbType.Varchar2).Value = newRelativePath;
+                                insertAttachCmd.Parameters.Add("fileSize", OracleDbType.Int32).Value = newFileSize;
+                                insertAttachCmd.Parameters.Add("fileType", OracleDbType.Varchar2).Value = newFileType;
+                                insertAttachCmd.Parameters.Add("uploadedBy", OracleDbType.Int32).Value = CurrentUserID;
+                                insertAttachCmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
                     var newSnap = GetTicketSnapshot(ticketId, conn);
                     AuditHelper.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId, oldSnap, newSnap);
 

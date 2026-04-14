@@ -528,6 +528,24 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.TextBox txtEditDueDate;
 
         /// <summary>
+        /// lblEditAttachmentStatus control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Label lblEditAttachmentStatus;
+
+        /// <summary>
+        /// fuEditAttachment control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.FileUpload fuEditAttachment;
+
+        /// <summary>
         /// btnSaveEdit control.
         /// </summary>
         /// <remarks>

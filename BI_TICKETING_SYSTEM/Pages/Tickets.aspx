@@ -589,6 +589,20 @@
                             <asp:TextBox ID="txtEditDueDate" runat="server" CssClass="form-control" TextMode="Date" />
                         </div>
                     </div>
+                    <div class="row mb-2">
+                        <div class="col-12">
+                            <label class="form-label">Current Attachment</label>
+                            <p class="form-control-plaintext">
+                                <asp:Label ID="lblEditAttachmentStatus" runat="server" Text="No attachment uploaded" />
+                            </p>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label">Upload/Replace Attachment (Optional)</label>
+                            <asp:FileUpload ID="fuEditAttachment" runat="server" CssClass="form-control" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" />
+                            <small class="text-muted">Allowed file types: jpg, jpeg, png, pdf, doc, docx</small>
+                        </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
