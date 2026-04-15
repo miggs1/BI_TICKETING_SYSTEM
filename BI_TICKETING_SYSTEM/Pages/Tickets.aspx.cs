@@ -1440,13 +1440,12 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                         int existingAttachmentId = 0;
                         string oldFilePath = null;
-                        string oldSavedFileName = null;
+                        Dictionary<string, object> oldAttachmentSnap = null;
 
                         using (OracleCommand checkCmd = new OracleCommand(checkAttachmentSql, conn))
                         {
                             checkCmd.BindByName = true;
                             checkCmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
-
 
                             using (OracleDataReader reader = checkCmd.ExecuteReader())
                             {
@@ -1454,10 +1453,23 @@ namespace BI_TICKETING_SYSTEM.Pages
                                 {
                                     existingAttachmentId = Convert.ToInt32(reader["ATTACHMENT_ID"]);
                                     oldFilePath = reader["FILE_PATH"] == DBNull.Value ? null : reader["FILE_PATH"].ToString();
-                                    oldSavedFileName = reader["SAVED_FILE_NAME"] == DBNull.Value ? null : reader["SAVED_FILE_NAME"].ToString();
+
+                                    oldAttachmentSnap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+                                    {
+                                        ["ATTACHMENT_ID"] = existingAttachmentId,
+                                        ["TICKET_ID"] = ticketId,
+                                        ["ORIGINAL_FILE_NAME"] = reader["ORIGINAL_FILE_NAME"] == DBNull.Value ? null : reader["ORIGINAL_FILE_NAME"].ToString(),
+                                        ["SAVED_FILE_NAME"] = reader["SAVED_FILE_NAME"] == DBNull.Value ? null : reader["SAVED_FILE_NAME"].ToString(),
+                                        ["FILE_PATH"] = reader["FILE_PATH"] == DBNull.Value ? null : reader["FILE_PATH"].ToString(),
+                                        ["FILE_SIZE"] = reader["FILE_SIZE"] == DBNull.Value ? (object)null : Convert.ToInt32(reader["FILE_SIZE"]),
+                                        ["FILE_TYPE"] = reader["FILE_TYPE"] == DBNull.Value ? null : reader["FILE_TYPE"].ToString(),
+                                        ["UPLOADED_BY"] = reader["UPLOADED_BY"] == DBNull.Value ? (object)null : Convert.ToInt32(reader["UPLOADED_BY"]),
+                                        ["UPLOADED_AT"] = reader["UPLOADED_AT"] == DBNull.Value ? null : Convert.ToDateTime(reader["UPLOADED_AT"]).ToString("MM/dd/yyyy hh:mm tt")
+                                    };
                                 }
                             }
                         }
+
                         var fileInfo = SaveAttachmentDetails(fuEditAttachment);
                         string newOriginalFileName = fileInfo.origName;
                         string newSavedFileName = fileInfo.savedName;
@@ -1476,7 +1488,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                                     FILE_TYPE = :fileType,
                                     UPLOADED_BY = :uploadedBy,
                                     UPLOADED_AT = SYSDATE
-                               WHERE ATTACHMENT_ID = :attachmentId";
+                                WHERE ATTACHMENT_ID = :attachmentId";
 
                             using (OracleCommand updateAttachCmd = new OracleCommand(updateAttachmentSql, conn))
                             {
@@ -1490,6 +1502,29 @@ namespace BI_TICKETING_SYSTEM.Pages
                                 updateAttachCmd.Parameters.Add("attachmentId", OracleDbType.Int32).Value = existingAttachmentId;
                                 updateAttachCmd.ExecuteNonQuery();
                             }
+
+                            var newAttachmentSnap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+                            {
+                                ["ATTACHMENT_ID"] = existingAttachmentId,
+                                ["TICKET_ID"] = ticketId,
+                                ["ORIGINAL_FILE_NAME"] = newOriginalFileName,
+                                ["SAVED_FILE_NAME"] = newSavedFileName,
+                                ["FILE_PATH"] = newRelativePath,
+                                ["FILE_SIZE"] = newFileSize,
+                                ["FILE_TYPE"] = newFileType,
+                                ["UPLOADED_BY"] = CurrentUserID
+                            };
+
+                            AuditHelper.LogAction(
+                                CurrentUserID,
+                                "REPLACE_ATTACHMENT",
+                                "ATTACHMENTS",
+                                ticketId,
+                                oldAttachmentSnap,
+                                newAttachmentSnap
+                            );
+
+
                             if (!string.IsNullOrWhiteSpace(oldFilePath))
                             {
                                 string oldPhysicalPath = Server.MapPath(oldFilePath);
@@ -1517,10 +1552,29 @@ namespace BI_TICKETING_SYSTEM.Pages
                                 insertAttachCmd.Parameters.Add("uploadedBy", OracleDbType.Int32).Value = CurrentUserID;
                                 insertAttachCmd.ExecuteNonQuery();
                             }
+
+                            var newAttachmentSnap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+                            {
+                                ["TICKET_ID"] = ticketId,
+                                ["ORIGINAL_FILE_NAME"] = newOriginalFileName,
+                                ["SAVED_FILE_NAME"] = newSavedFileName,
+                                ["FILE_PATH"] = newRelativePath,
+                                ["FILE_SIZE"] = newFileSize,
+                                ["FILE_TYPE"] = newFileType,
+                                ["UPLOADED_BY"] = CurrentUserID
+                            };
+
+                            AuditHelper.LogAction(
+                                CurrentUserID,
+                                "UPLOAD_ATTACHMENT",
+                                "ATTACHMENTS",
+                                ticketId,
+                                null,
+                                newAttachmentSnap
+                            );
                         }
                     }
-                    var newSnap = GetTicketSnapshot(ticketId, conn);
-                    AuditHelper.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId, oldSnap, newSnap);
+                    
 
                     if (hasDueDate)
                     {

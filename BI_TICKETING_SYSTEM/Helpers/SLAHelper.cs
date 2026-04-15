@@ -12,16 +12,16 @@ namespace BI_TICKETING_SYSTEM.Helpers
             {
                 case "critical":
                 case "urgent":
-                    return startDate.AddHours(4);
+                    return startDate.AddHours(1);
 
                 case "high":
-                    return startDate.AddDays(1);
+                    return startDate.AddHours(3);
 
                 case "medium":
-                    return startDate.AddDays(3);
+                    return startDate.AddDays(1);
 
                 case "low":
-                    return startDate.AddDays(7);
+                    return startDate.AddDays(2);
 
                 default:
                     return null;
