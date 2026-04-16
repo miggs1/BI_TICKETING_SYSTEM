@@ -1355,7 +1355,7 @@ namespace BI_TICKETING_SYSTEM.Pages
             try
             {
                 int ticketId = Convert.ToInt32(hfEditTicketId.Value);
-
+                string successMessage = "Ticket updated successfully";
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
@@ -1432,8 +1432,14 @@ namespace BI_TICKETING_SYSTEM.Pages
                             ShowError("Invalid file type. Allowed file types are: jpg, jpeg, png, pdf, doc, docx.");
                             return;
                         }
+                        if (!IsAllowedAttachmentSize(fuEditAttachment))
+                        {
+                            hfShowModal.Value = "edit";
+                            ShowError("File size must not exceed 10 MB.");
+                            return;
+                        }
                         string checkAttachmentSql = @"
-                            SELECT ATTACHMENT_ID, FILE_PATH, SAVED_FILE_NAME
+                            SELECT ATTACHMENT_ID, ORIGINAL_FILE_NAME, SAVED_FILE_NAME, FILE_PATH, FILE_SIZE, FILE_TYPE, UPLOADED_BY, UPLOADED_AT
                             FROM BI_OJT.ATTACHMENTS
                             WHERE TICKET_ID = :ticketId
                             ORDER BY UPLOADED_AT DESC";
@@ -1502,7 +1508,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                                 updateAttachCmd.Parameters.Add("attachmentId", OracleDbType.Int32).Value = existingAttachmentId;
                                 updateAttachCmd.ExecuteNonQuery();
                             }
-
+                            successMessage = "Ticket and attachment replaced successfully!";
                             var newAttachmentSnap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
                             {
                                 ["ATTACHMENT_ID"] = existingAttachmentId,
@@ -1551,8 +1557,9 @@ namespace BI_TICKETING_SYSTEM.Pages
                                 insertAttachCmd.Parameters.Add("fileType", OracleDbType.Varchar2).Value = newFileType;
                                 insertAttachCmd.Parameters.Add("uploadedBy", OracleDbType.Int32).Value = CurrentUserID;
                                 insertAttachCmd.ExecuteNonQuery();
+                                
                             }
-
+                            successMessage = "Ticket updated and attachment uploaded successfully";
                             var newAttachmentSnap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
                             {
                                 ["TICKET_ID"] = ticketId,
@@ -1592,7 +1599,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                     }
 
                     hfShowModal.Value = "";
-                    ShowSuccess("Ticket updated successfully!");
+                    ShowSuccess(successMessage);
                     LoadTickets();
                 }
             }
