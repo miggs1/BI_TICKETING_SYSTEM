@@ -550,67 +550,61 @@
         </div>
     </div>
 
-    <div class="modal fade" id="modalEditTicket" tabindex="-1" role="dialog" data-backdrop="static">
-        <div class="modal-dialog modal-lg" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Ticket</h5>
-                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+<div class="modal fade" id="modalEditTicket" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Ticket</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <asp:HiddenField ID="hfEditTicketId" runat="server" />
+
+                <div class="form-group">
+                    <label>Ticket Number</label>
+                    <asp:TextBox ID="txtEditTicketNumber" runat="server" CssClass="form-control" ReadOnly="true" />
                 </div>
-                <div class="modal-body">
-                    <asp:HiddenField ID="hfEditTicketId" runat="server" />
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <label class="form-label">Ticket Number</label>
-                            <asp:TextBox ID="txtEditTicketNumber" runat="server" CssClass="form-control" ReadOnly="true" />
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <label class="form-label">Title <span class="required-star">*</span></label>
-                            <asp:TextBox ID="txtEditTitle" runat="server" CssClass="form-control" MaxLength="200" />
-                            <asp:RequiredFieldValidator ID="rfvEditTitle" runat="server" ControlToValidate="txtEditTitle"
-                                ErrorMessage="Title is required." ForeColor="Red" Display="Dynamic"
-                                ValidationGroup="EditTicket" Font-Size="11px" />
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <label class="form-label">Description <span class="required-star">*</span></label>
-                            <asp:TextBox ID="txtEditDescription" runat="server" CssClass="form-control" TextMode="MultiLine" Rows="5" />
-                            <asp:RequiredFieldValidator ID="rfvEditDescription" runat="server" ControlToValidate="txtEditDescription"
-                                ErrorMessage="Description is required." ForeColor="Red" Display="Dynamic"
-                                ValidationGroup="EditTicket" Font-Size="11px" />
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Due Date</label>
-                            <asp:TextBox ID="txtEditDueDate" runat="server" CssClass="form-control" TextMode="Date" />
-                        </div>
-                    </div>
-                    <div class="row mb-2">
-                        <div class="col-12">
-                            <label class="form-label">Current Attachment</label>
-                            <p class="form-control-plaintext">
-                                <asp:Label ID="lblEditAttachmentStatus" runat="server" Text="No attachment uploaded" />
-                            </p>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-12">
-                            <label class="form-label">Upload/Replace Attachment (Optional)</label>
-                            <asp:FileUpload ID="fuEditAttachment" runat="server" CssClass="form-control" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" />
-                            <small class="text-muted">Allowed file types: jpg, jpeg, png, pdf, doc, docx</small>
-                        </div>
+
+                <div class="form-group">
+                    <label>Title</label>
+                    <asp:TextBox ID="txtEditTitle" runat="server" CssClass="form-control" />
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <asp:Button ID="btnSaveEdit" runat="server" Text="Save Changes" CssClass="btn btn-create" OnClick="btnSaveEdit_Click" ValidationGroup="EditTicket" />
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <asp:TextBox ID="txtEditDescription" runat="server" CssClass="form-control" TextMode="MultiLine" Rows="5" />
+                </div>
+
+                <div class="form-group">
+                    <label>Due Date</label>
+                    <asp:TextBox ID="txtEditDueDate" runat="server" CssClass="form-control" TextMode="Date" />
+                </div>
+
+                <div class="form-group">
+                    <label>Current Attachment</label>
+                    <asp:Label ID="lblEditAttachmentStatus" runat="server" CssClass="form-control-plaintext" Text="No attachment uploaded" />
+                </div>
+
+                <div class="form-group">
+                    <label>Upload / Replace Attachment</label>
+                    <asp:FileUpload ID="fuEditAttachment" runat="server" CssClass="form-control"
+                        accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" />
                 </div>
             </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <asp:Button ID="btnSaveEdit" runat="server" Text="Save Changes"
+                    CssClass="btn btn-primary" OnClick="btnSaveEdit_Click" />
+            </div>
+
         </div>
     </div>
+</div>
 
     <asp:HiddenField ID="hfShowModal" runat="server" Value="" />
     <asp:HiddenField ID="hfSwalMessage" runat="server" Value="" />

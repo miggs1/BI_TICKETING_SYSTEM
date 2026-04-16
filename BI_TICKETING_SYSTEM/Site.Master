@@ -41,7 +41,7 @@
                         <i class="fas fa-user mr-2" style="color:#001f54;"></i> Profile
                     </a>
                     <div class="dropdown-divider"></div>
-                    <asp:LinkButton ID="btnLogout" runat="server" CssClass="dropdown-item" OnClick="btnLogout_Click">
+                    <asp:LinkButton ID="btnLogout" runat="server" CssClass="dropdown-item" OnClick="btnLogout_Click" CausesValidation="false">
                         <i class="fas fa-sign-out-alt mr-2" style="color:#ce1126;"></i> Logout
                     </asp:LinkButton>
                 </div>

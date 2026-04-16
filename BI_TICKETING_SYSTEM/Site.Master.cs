@@ -7,6 +7,11 @@ namespace BI_TICKETING_SYSTEM
     {
         protected void Page_Load(object sender, EventArgs e)
         {
+
+            Response.Cache.SetCacheability(HttpCacheability.NoCache);
+            Response.Cache.SetNoStore();
+            Response.Cache.SetExpires(DateTime.MinValue);
+
             // Check if user is logged in
             if (Session["UserName"] == null)
             {
@@ -52,8 +57,12 @@ namespace BI_TICKETING_SYSTEM
             Session.Clear();
             Session.Abandon();
 
-            // Redirect to login
-            Response.Redirect("~/Login.aspx");
+            Response.Cache.SetCacheability(HttpCacheability.NoCache);
+            Response.Cache.SetNoStore();
+            Response.Cache.SetExpires(DateTime.MinValue);
+
+            Response.Redirect("~/Login.aspx", false);
+            Context.ApplicationInstance.CompleteRequest();
         }
     }
 }

@@ -492,15 +492,6 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.TextBox txtEditTitle;
 
         /// <summary>
-        /// rfvEditTitle control.
-        /// </summary>
-        /// <remarks>
-        /// Auto-generated field.
-        /// To modify move field declaration from designer file to code-behind file.
-        /// </remarks>
-        protected global::System.Web.UI.WebControls.RequiredFieldValidator rfvEditTitle;
-
-        /// <summary>
         /// txtEditDescription control.
         /// </summary>
         /// <remarks>
@@ -508,15 +499,6 @@ namespace BI_TICKETING_SYSTEM.Pages
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
         protected global::System.Web.UI.WebControls.TextBox txtEditDescription;
-
-        /// <summary>
-        /// rfvEditDescription control.
-        /// </summary>
-        /// <remarks>
-        /// Auto-generated field.
-        /// To modify move field declaration from designer file to code-behind file.
-        /// </remarks>
-        protected global::System.Web.UI.WebControls.RequiredFieldValidator rfvEditDescription;
 
         /// <summary>
         /// txtEditDueDate control.

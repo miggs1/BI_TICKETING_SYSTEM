@@ -16,14 +16,14 @@ namespace BI_TICKETING_SYSTEM.Pages
     {
         private int PageSize = 10;
 
-        private static readonly HashSet<string> AllowedAttachmentExtensions = 
+        private static readonly HashSet<string> AllowedAttachmentExtensions =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { 
+            {
                 ".jpg",
-                ".jpeg", 
-                ".png", 
-                ".pdf", 
-                ".doc", 
+                ".jpeg",
+                ".png",
+                ".pdf",
+                ".doc",
                 ".docx"
             };
 
@@ -1332,7 +1332,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
-                    string sql = "SELECT TICKET_NUMBER, TITLE, DESCRIPTION, DUE_DATE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId"; 
+                    string sql = "SELECT TICKET_NUMBER, TITLE, DESCRIPTION, DUE_DATE FROM BI_OJT.TICKETS WHERE TICKET_ID = :ticketId";
                     OracleCommand cmd = new OracleCommand(sql, conn);
                     cmd.BindByName = true;
                     cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
@@ -1368,7 +1368,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                             else
                                 lblEditAttachmentStatus.Text = "No attachment uploaded";
                         }
-                            hfShowModal.Value = "edit";
+                        hfShowModal.Value = "edit";
                     }
                 }
             }
@@ -1588,7 +1588,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                                 insertAttachCmd.Parameters.Add("fileType", OracleDbType.Varchar2).Value = newFileType;
                                 insertAttachCmd.Parameters.Add("uploadedBy", OracleDbType.Int32).Value = CurrentUserID;
                                 insertAttachCmd.ExecuteNonQuery();
-                                
+
                             }
                             successMessage = "Ticket updated and attachment uploaded successfully";
                             var newAttachmentSnap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
@@ -1612,7 +1612,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                             );
                         }
                     }
-                    
+
 
                     if (hasDueDate)
                     {
@@ -1962,7 +1962,7 @@ namespace BI_TICKETING_SYSTEM.Pages
         {
             if (fu == null || !fu.HasFile)
                 return false;
-            
+
             string extension = System.IO.Path.GetExtension(fu.FileName);
             return AllowedAttachmentExtensions.Contains(extension);
 
