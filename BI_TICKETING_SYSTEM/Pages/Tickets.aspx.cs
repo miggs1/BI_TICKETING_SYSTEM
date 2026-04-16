@@ -566,7 +566,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 {
                     if (!IsAllowedAttachmentType(fuAttachment))
                     {
-                        ShowError("Invalid file type. Allowed file types are: jpg, jpeg, png, pdf, docs, docx.");
+                        ShowError("Invalid file type. Allowed file types are: jpg, jpeg, png, pdf, doc, docx.");
                         hfShowModal.Value = "create";
                         return;
                     }
@@ -1040,13 +1040,12 @@ namespace BI_TICKETING_SYSTEM.Pages
                 dtFinal.Columns.Add("USER_ROLE", typeof(string));
                 dtFinal.Columns.Add("SORT_DATE", typeof(DateTime));
 
-
                 string remarksSql = @"
-            SELECT TR.REMARK_TEXT, TR.CREATED_AT, U.FULL_NAME, U.ROLE
-            FROM BI_OJT.TICKET_REMARKS TR
-            LEFT JOIN BI_OJT.USERS U ON TR.USER_ID = U.USER_ID
-            WHERE TR.TICKET_ID = :ticketId
-            ORDER BY TR.CREATED_AT DESC";
+                    SELECT TR.REMARK_TEXT, TR.CREATED_AT, U.FULL_NAME, U.ROLE
+                    FROM BI_OJT.TICKET_REMARKS TR
+                    LEFT JOIN BI_OJT.USERS U ON TR.USER_ID = U.USER_ID
+                    WHERE TR.TICKET_ID = :ticketId
+                    ORDER BY TR.CREATED_AT DESC";
 
                 using (OracleCommand cmdRemarks = new OracleCommand(remarksSql, conn))
                 {
@@ -1094,14 +1093,13 @@ namespace BI_TICKETING_SYSTEM.Pages
                     }
                 }
 
-
                 string auditSql = @"
-            SELECT U.FULL_NAME, U.ROLE, A.ACTION, A.OLD_VALUE, A.NEW_VALUE, A.CREATED_AT
-            FROM BI_OJT.AUDIT_LOGS A
-            LEFT JOIN BI_OJT.USERS U ON A.USER_ID = U.USER_ID
-            WHERE A.TABLE_NAME = 'TICKETS'
-              AND A.TICKET_ID = :ticketId
-            ORDER BY A.CREATED_AT DESC";
+                    SELECT U.FULL_NAME, U.ROLE, A.ACTION, A.OLD_VALUE, A.NEW_VALUE, A.CREATED_AT
+                    FROM BI_OJT.AUDIT_LOGS A
+                    LEFT JOIN BI_OJT.USERS U ON A.USER_ID = U.USER_ID
+                    WHERE A.TABLE_NAME IN ('TICKETS', 'ATTACHMENTS')
+                      AND A.TICKET_ID = :ticketId
+                    ORDER BY A.CREATED_AT DESC";
 
                 using (OracleCommand cmdAudit = new OracleCommand(auditSql, conn))
                 {
@@ -1181,32 +1179,64 @@ namespace BI_TICKETING_SYSTEM.Pages
                                         $"{fullName} changed the assigned ticket to {assignedName}",
                                         role.ToLower(),
                                         createdAt
-                                );
+                                    );
                                 }
                             }
                         }
+
+                        if (action == "UPLOAD_ATTACHMENT")
+                        {
+                            string newFile = string.IsNullOrWhiteSpace(newObj?["ORIGINAL_FILE_NAME"]?.ToString())
+                                ? "Unknown file"
+                                : newObj["ORIGINAL_FILE_NAME"].ToString();
+
+                            dtFinal.Rows.Add(
+                                dateDisplay,
+                                fullName,
+                                "Edit",
+                                $"{fullName} uploaded the attachment: {newFile}",
+                                role.ToLower(),
+                                createdAt
+                            );
+                        }
+
+                        if (action == "REPLACE_ATTACHMENT")
+                        {
+                            string newFile = string.IsNullOrWhiteSpace(newObj?["ORIGINAL_FILE_NAME"]?.ToString())
+                                ? "Unknown file"
+                                : newObj["ORIGINAL_FILE_NAME"].ToString();
+
+                            dtFinal.Rows.Add(
+                                dateDisplay,
+                                fullName,
+                                "Edit",
+                                $"{fullName} replaced the attachment with: {newFile}",
+                                role.ToLower(),
+                                createdAt
+                            );
+                        }
                     }
+                }
 
-                    RemoveRedundantAssignmentStatusRows(dtFinal);
+                RemoveRedundantAssignmentStatusRows(dtFinal);
 
-                    DataView dv = dtFinal.DefaultView;
-                    dv.Sort = "SORT_DATE DESC";
+                DataView dv = dtFinal.DefaultView;
+                dv.Sort = "SORT_DATE DESC";
 
-                    DataTable dtBind = dv.ToTable();
-                    dtBind.Columns.Remove("SORT_DATE");
+                DataTable dtBind = dv.ToTable();
+                dtBind.Columns.Remove("SORT_DATE");
 
-                    if (dtBind.Rows.Count > 0)
-                    {
-                        rptRemarks.DataSource = dtBind;
-                        rptRemarks.DataBind();
-                        pnlNoRemarks.Visible = false;
-                    }
-                    else
-                    {
-                        rptRemarks.DataSource = null;
-                        rptRemarks.DataBind();
-                        pnlNoRemarks.Visible = true;
-                    }
+                if (dtBind.Rows.Count > 0)
+                {
+                    rptRemarks.DataSource = dtBind;
+                    rptRemarks.DataBind();
+                    pnlNoRemarks.Visible = false;
+                }
+                else
+                {
+                    rptRemarks.DataSource = null;
+                    rptRemarks.DataBind();
+                    pnlNoRemarks.Visible = true;
                 }
             }
             catch (Exception ex)
@@ -1518,7 +1548,8 @@ namespace BI_TICKETING_SYSTEM.Pages
                                 ["FILE_PATH"] = newRelativePath,
                                 ["FILE_SIZE"] = newFileSize,
                                 ["FILE_TYPE"] = newFileType,
-                                ["UPLOADED_BY"] = CurrentUserID
+                                ["UPLOADED_BY"] = CurrentUserID,
+                                ["UPLOADED_AT"] = DateTime.Now.ToString("MM/dd/yyyy hh:mm tt")
                             };
 
                             AuditHelper.LogAction(

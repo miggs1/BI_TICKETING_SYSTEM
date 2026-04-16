@@ -351,7 +351,16 @@ namespace BI_TICKETING_SYSTEM.Pages
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
-                    string sql = @"
+
+                    DataTable dtFinal = new DataTable();
+                    dtFinal.Columns.Add("DATE_DISPLAY", typeof(string));
+                    dtFinal.Columns.Add("CHANGED_BY", typeof(string));
+                    dtFinal.Columns.Add("ENTRY_TYPE", typeof(string));
+                    dtFinal.Columns.Add("DETAILS", typeof(string));
+                    dtFinal.Columns.Add("USER_ROLE", typeof(string));
+                    dtFinal.Columns.Add("SORT_DATE", typeof(DateTime));
+
+                    string remarksSql = @"
                         SELECT R.REMARK_TEXT,
                                R.CREATED_AT,
                                U.FULL_NAME AS CREATED_BY_NAME,
@@ -361,26 +370,149 @@ namespace BI_TICKETING_SYSTEM.Pages
                         ON R.USER_ID = U.USER_ID
                         WHERE R.TICKET_ID = :ticketId
                         ORDER BY R.CREATED_AT DESC";
-                    OracleCommand cmd = new OracleCommand(sql, conn);
-                    cmd.BindByName = true;
-                    cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
 
-                    OracleDataAdapter da = new OracleDataAdapter(cmd);
-                    DataTable dtRaw = new DataTable();
-                    da.Fill(dtRaw);
+                    using (OracleCommand cmdRemarks = new OracleCommand(remarksSql, conn))
+                    {
+                        cmdRemarks.BindByName = true;
+                        cmdRemarks.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
 
-                    DataTable dt = BuildAuditTrailTable(dtRaw);
+                        OracleDataAdapter daRemarks = new OracleDataAdapter(cmdRemarks);
+                        DataTable dtRawRemarks = new DataTable();
+                        daRemarks.Fill(dtRawRemarks);
 
-                    rptRemarks.DataSource = dt;
+                        foreach (DataRow rawRow in dtRawRemarks.Rows)
+                        {
+                            string remarkText = rawRow["REMARK_TEXT"].ToString();
+                            string fullName = rawRow["CREATED_BY_NAME"] != DBNull.Value ? rawRow["CREATED_BY_NAME"].ToString() : "";
+                            string role = rawRow["ROLE"] != DBNull.Value ? rawRow["ROLE"].ToString() : "";
+                            DateTime createdAt = Convert.ToDateTime(rawRow["CREATED_AT"]);
+                            string dateDisplay = createdAt.ToString("MM/dd/yyyy h:mm tt");
+
+                            string entryType;
+                            string details;
+
+                            if (remarkText == "Ticket Status: New")
+                            {
+                                entryType = "Status Change";
+                                details = "Created a new ticket";
+                            }
+                            else if (remarkText.StartsWith("Ticket Status: Assigned to "))
+                            {
+                                entryType = "Status Change";
+                                string assignedName = remarkText.Substring("Ticket Status: Assigned to ".Length);
+                                details = fullName + " assigned ticket to " + assignedName;
+                            }
+                            else if (remarkText.StartsWith("Ticket Status: "))
+                            {
+                                entryType = "Status Change";
+                                details = remarkText;
+                            }
+                            else
+                            {
+                                entryType = "Remarks";
+                                details = remarkText;
+                            }
+                            dtFinal.Rows.Add(dateDisplay, fullName, entryType, details, role.ToLower(), createdAt);
+                        }
+                    }
+
+                    string auditSql = @"
+                        SELECT U.FULL_NAME, U.ROLE, A.ACTION, A.OLD_VALUE, A.NEW_VALUE, A.CREATED_AT
+                        FROM BI_OJT.AUDIT_LOGS A
+                        LEFT JOIN BI_OJT.USERS U ON A.USER_ID = U.USER_ID
+                        WHERE A.TICKET_ID = :ticketId
+                          AND A.TABLE_NAME = 'ATTACHMENTS'
+                        ORDER BY A.CREATED_AT DESC";
+
+                    using (OracleCommand cmdAudit = new OracleCommand(auditSql, conn))
+                    {
+                        cmdAudit.BindByName = true;
+                        cmdAudit.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                        OracleDataAdapter daAudit = new OracleDataAdapter(cmdAudit);
+                        DataTable dtAudit = new DataTable();
+                        daAudit.Fill(dtAudit);
+
+                        foreach (DataRow row in dtAudit.Rows)
+                        {
+                            string fullName = row["FULL_NAME"] != DBNull.Value ? row["FULL_NAME"].ToString() : "";
+                            string role = row["ROLE"] != DBNull.Value ? row["ROLE"].ToString() : "";
+                            string action = row["ACTION"] != DBNull.Value ? row["ACTION"].ToString() : "";
+                            DateTime createdAt = Convert.ToDateTime(row["CREATED_AT"]);
+                            string dateDisplay = createdAt.ToString("MM/dd/yyyy h:mm tt");
+
+                            var oldObj = TryParseJsonForTicketAudit(row["OLD_VALUE"]?.ToString());
+                            var newObj = TryParseJsonForTicketAudit(row["NEW_VALUE"]?.ToString());
+
+                            if (action == "UPLOAD_ATTACHMENT")
+                            {
+                                string newFile = string.IsNullOrWhiteSpace(newObj?["ORIGINAL_FILE_NAME"]?.ToString())
+                                    ? "Unknown file"
+                                    : newObj["ORIGINAL_FILE_NAME"].ToString();
+
+                                dtFinal.Rows.Add(
+                                    dateDisplay,
+                                    fullName,
+                                    "Edit",
+                                    $"{fullName} uploaded the attachment: {newFile}",
+                                    role.ToLower(),
+                                    createdAt
+                                );
+                            }
+                            if (action == "REPLACE_ATTACHMENT")
+                            {
+                                string newFile = string.IsNullOrWhiteSpace(newObj?["ORIGINAL_FILE_NAME"]?.ToString())
+                                    ? "Unknown file"
+                                    : newObj["ORIGINAL_FILE_NAME"].ToString();
+
+                                dtFinal.Rows.Add(
+                                    dateDisplay,
+                                    fullName,
+                                    "Edit",
+                                    $"{fullName} replaced the attachment with: {newFile}",
+                                    role.ToLower(),
+                                    createdAt
+                                );
+                            }
+                        }
+                    }
+
+                    DataView dv = dtFinal.DefaultView;
+                    dv.Sort = "SORT_DATE DESC";
+
+                    DataTable dtBind = dv.ToTable();
+                    dtBind.Columns.Remove("SORT_DATE");
+
+                    rptRemarks.DataSource = dtBind;
                     rptRemarks.DataBind();
 
-                    pnlNoRemarks.Visible = (dt.Rows.Count == 0);
-                    rptRemarks.Visible = (dt.Rows.Count > 0);
+                    pnlNoRemarks.Visible = (dtBind.Rows.Count == 0);
+                    rptRemarks.Visible = (dtBind.Rows.Count > 0);
                 }
             }
+
             catch (Exception ex)
             {
                 ShowError("Error loading remarks: " + ex.Message);
+            }
+        }
+
+        private Newtonsoft.Json.Linq.JObject TryParseJsonForTicketAudit(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return null;
+
+            json = json.Trim();
+            if (!json.StartsWith("{"))
+                return null;
+
+            try
+            {
+                return Newtonsoft.Json.Linq.JObject.Parse(json);
+            }
+            catch
+            {
+                return null;
             }
         }
 
