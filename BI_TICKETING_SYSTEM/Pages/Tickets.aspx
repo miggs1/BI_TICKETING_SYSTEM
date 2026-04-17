@@ -599,7 +599,8 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                 <asp:Button ID="btnSaveEdit" runat="server" Text="Save Changes"
-                    CssClass="btn btn-primary" OnClick="btnSaveEdit_Click" />
+                    CssClass="btn btn-primary" OnClick="btnSaveEdit_Click"
+                    CausesValidation="false" UseSubmitBehavior="false" />
             </div>
 
         </div>

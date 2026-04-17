@@ -1380,8 +1380,6 @@ namespace BI_TICKETING_SYSTEM.Pages
 
         protected void btnSaveEdit_Click(object sender, EventArgs e)
         {
-            if (!Page.IsValid) return;
-
             try
             {
                 int ticketId = Convert.ToInt32(hfEditTicketId.Value);
@@ -1454,6 +1452,10 @@ namespace BI_TICKETING_SYSTEM.Pages
                         cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
                         cmd.ExecuteNonQuery();
                     }
+
+                    var newSnap = GetTicketSnapshot(ticketId, conn);
+                    AuditHelper.LogAction(CurrentUserID, "EDIT_TICKET", "TICKETS", ticketId, oldSnap, newSnap);
+
                     if (fuEditAttachment.HasFile)
                     {
                         if (!IsAllowedAttachmentType(fuEditAttachment))
