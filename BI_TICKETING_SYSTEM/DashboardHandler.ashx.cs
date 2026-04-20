@@ -13,32 +13,51 @@ namespace BI_TICKETING_SYSTEM
 
             try
             {
-                int total = 0, resolved = 0, pending = 0, overdue = 0,
+                int total = 0, resolved = 0, overdue = 0, dueToday = 0,
                     open = 0, inProgress = 0, closed = 0;
 
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
+
                     total = GetScalar(conn, "SELECT COUNT(*) FROM BI_OJT.TICKETS");
-                    resolved = GetScalar(conn, "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'RESOLVED'");
-                    pending = GetScalar(conn, "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'PENDING'");
-                    overdue = GetScalar(conn, @"SELECT COUNT(*) FROM BI_OJT.TICKETS 
-                                                   WHERE UPPER(STATUS) NOT IN ('RESOLVED','CLOSED') 
-                                                   AND CREATED_AT < SYSDATE - 7");
-                    open = GetScalar(conn, "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'OPEN'");
-                    inProgress = GetScalar(conn, "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'IN PROGRESS'");
-                    closed = GetScalar(conn, "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'CLOSED'");
+
+                    resolved = GetScalar(conn,
+                        "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'RESOLVED'");
+
+                    overdue = GetScalar(conn,
+                        @"SELECT COUNT(*)
+                          FROM BI_OJT.TICKETS
+                          WHERE DUE_DATE IS NOT NULL
+                            AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
+                            AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')");
+
+                    dueToday = GetScalar(conn,
+                        @"SELECT COUNT(*)
+                          FROM BI_OJT.TICKETS
+                          WHERE DUE_DATE IS NOT NULL
+                            AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
+                            AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')");
+
+                    open = GetScalar(conn,
+                        "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'NEW'");
+
+                    inProgress = GetScalar(conn,
+                        "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'IN PROGRESS'");
+
+                    closed = GetScalar(conn,
+                        "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'CLOSED'");
                 }
 
                 context.Response.Write(string.Format(
-                    "{{\"total\":{0},\"resolved\":{1},\"pending\":{2},\"overdue\":{3},\"open\":{4},\"inProgress\":{5},\"closed\":{6}}}",
-                    total, resolved, pending, overdue, open, inProgress, closed));
+                    "{{\"total\":{0},\"resolved\":{1},\"overdue\":{2},\"dueToday\":{3},\"open\":{4},\"inProgress\":{5},\"closed\":{6}}}",
+                    total, resolved, overdue, dueToday, open, inProgress, closed));
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("DashboardHandler Error: " + ex.Message);
                 context.Response.Write(
-                    "{\"total\":0,\"resolved\":0,\"pending\":0,\"overdue\":0,\"open\":0,\"inProgress\":0,\"closed\":0}");
+                    "{\"total\":0,\"resolved\":0,\"overdue\":0,\"dueToday\":0,\"open\":0,\"inProgress\":0,\"closed\":0}");
             }
         }
 

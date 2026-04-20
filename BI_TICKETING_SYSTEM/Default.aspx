@@ -75,6 +75,7 @@
                 </div>
             </div>
         </div>
+
         <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
             <div class="stat-card stat-teal">
                 <div class="card-body">
@@ -90,33 +91,35 @@
                 </div>
             </div>
         </div>
+
         <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
             <div class="stat-card stat-gold">
                 <div class="card-body">
-                    <i class="fas fa-clock stat-icon"></i>
+                    <i class="fas fa-calendar-day stat-icon"></i>
                     <div class="stat-number">
                         <asp:Label ID="lblPending" runat="server" Text="0" />
                     </div>
-                    <div class="stat-label">New</div>
+                    <div class="stat-label">Due Today</div>
                 </div>
                 <div class="stat-footer">
                     <i class="fas fa-arrow-circle-right mr-1"></i>
-                    <a href="~/Pages/Tickets.aspx" runat="server">View New</a>
+                    <a href="~/Pages/Tickets.aspx" runat="server">View Due Today</a>
                 </div>
             </div>
         </div>
+
         <div class="col-lg-3 col-md-6 col-sm-6 mb-3">
             <div class="stat-card stat-crimson">
                 <div class="card-body">
-                    <i class="fas fa-user-check stat-icon"></i>
+                    <i class="fas fa-exclamation-circle stat-icon"></i>
                     <div class="stat-number">
                         <asp:Label ID="lblOverdue" runat="server" Text="0" />
                     </div>
-                    <div class="stat-label">Assigned</div>
+                    <div class="stat-label">Overdue</div>
                 </div>
                 <div class="stat-footer">
                     <i class="fas fa-arrow-circle-right mr-1"></i>
-                    <a href="~/Pages/Tickets.aspx" runat="server">View Assigned</a>
+                    <a href="~/Pages/Tickets.aspx" runat="server">View Overdue</a>
                 </div>
             </div>
         </div>

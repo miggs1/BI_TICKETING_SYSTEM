@@ -66,18 +66,25 @@ namespace BI_TICKETING_SYSTEM
 
                     if (role == "admin")
                     {
-                        // ✅ Admin sees ALL tickets
                         lblTotalTickets.Text = GetScalar(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS").ToString();
 
                         lblResolved.Text = GetScalar(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'RESOLVED'").ToString();
 
-                        lblPending.Text = GetScalar(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'NEW'").ToString();
-
                         lblOverdue.Text = GetScalar(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'ASSIGNED'").ToString();
+                            @"SELECT COUNT(*)
+                      FROM BI_OJT.TICKETS
+                      WHERE DUE_DATE IS NOT NULL
+                        AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
+                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')").ToString();
+
+                        lblPending.Text = GetScalar(conn,
+                            @"SELECT COUNT(*)
+                      FROM BI_OJT.TICKETS
+                      WHERE DUE_DATE IS NOT NULL
+                        AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
+                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')").ToString();
 
                         lblOpenCount.Text = GetScalar(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'NEW'").ToString();
@@ -88,9 +95,9 @@ namespace BI_TICKETING_SYSTEM
                         lblClosedCount.Text = GetScalar(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'CLOSED'").ToString();
                     }
+
                     else if (role == "support")
                     {
-                        // ✅ Support sees only tickets ASSIGNED TO THEM
                         lblTotalTickets.Text = GetScalarWithParam(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId",
                             userId).ToString();
@@ -99,12 +106,22 @@ namespace BI_TICKETING_SYSTEM
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId AND UPPER(STATUS) = 'RESOLVED'",
                             userId).ToString();
 
-                        lblPending.Text = GetScalarWithParam(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId AND UPPER(STATUS) = 'NEW'",
+                        lblOverdue.Text = GetScalarWithParam(conn,
+                            @"SELECT COUNT(*)
+                      FROM BI_OJT.TICKETS
+                      WHERE ASSIGNED_TO_USER_ID = :userId
+                        AND DUE_DATE IS NOT NULL
+                        AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
+                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
                             userId).ToString();
 
-                        lblOverdue.Text = GetScalarWithParam(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId AND UPPER(STATUS) = 'ASSIGNED'",
+                        lblPending.Text = GetScalarWithParam(conn,
+                            @"SELECT COUNT(*)
+                      FROM BI_OJT.TICKETS
+                      WHERE ASSIGNED_TO_USER_ID = :userId
+                        AND DUE_DATE IS NOT NULL
+                        AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
+                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
                             userId).ToString();
 
                         lblOpenCount.Text = GetScalarWithParam(conn,
@@ -119,9 +136,9 @@ namespace BI_TICKETING_SYSTEM
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId AND UPPER(STATUS) = 'CLOSED'",
                             userId).ToString();
                     }
+
                     else
                     {
-                        // ✅ User sees only THEIR OWN tickets
                         lblTotalTickets.Text = GetScalarWithParam(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE CREATED_BY_USER_ID = :userId",
                             userId).ToString();
@@ -130,12 +147,22 @@ namespace BI_TICKETING_SYSTEM
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE CREATED_BY_USER_ID = :userId AND UPPER(STATUS) = 'RESOLVED'",
                             userId).ToString();
 
-                        lblPending.Text = GetScalarWithParam(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE CREATED_BY_USER_ID = :userId AND UPPER(STATUS) = 'NEW'",
+                        lblOverdue.Text = GetScalarWithParam(conn,
+                            @"SELECT COUNT(*)
+                      FROM BI_OJT.TICKETS
+                      WHERE CREATED_BY_USER_ID = :userId
+                        AND DUE_DATE IS NOT NULL
+                        AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
+                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
                             userId).ToString();
 
-                        lblOverdue.Text = GetScalarWithParam(conn,
-                            "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE CREATED_BY_USER_ID = :userId AND UPPER(STATUS) = 'ASSIGNED'",
+                        lblPending.Text = GetScalarWithParam(conn,
+                            @"SELECT COUNT(*)
+                      FROM BI_OJT.TICKETS
+                      WHERE CREATED_BY_USER_ID = :userId
+                        AND DUE_DATE IS NOT NULL
+                        AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
+                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
                             userId).ToString();
 
                         lblOpenCount.Text = GetScalarWithParam(conn,
@@ -164,6 +191,7 @@ namespace BI_TICKETING_SYSTEM
                 System.Diagnostics.Debug.WriteLine("Dashboard DB Error: " + ex.Message);
             }
         }
+
 
         // ===== Without parameter =====
         private int GetScalar(OracleConnection conn, string sql)
