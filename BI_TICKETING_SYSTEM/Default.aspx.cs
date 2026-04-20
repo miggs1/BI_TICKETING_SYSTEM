@@ -74,17 +74,17 @@ namespace BI_TICKETING_SYSTEM
 
                         lblOverdue.Text = GetScalar(conn,
                             @"SELECT COUNT(*)
-                      FROM BI_OJT.TICKETS
-                      WHERE DUE_DATE IS NOT NULL
-                        AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
-                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')").ToString();
+                              FROM BI_OJT.TICKETS
+                              WHERE DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')").ToString();
 
                         lblPending.Text = GetScalar(conn,
                             @"SELECT COUNT(*)
-                      FROM BI_OJT.TICKETS
-                      WHERE DUE_DATE IS NOT NULL
-                        AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
-                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')").ToString();
+                              FROM BI_OJT.TICKETS
+                              WHERE DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')").ToString();
 
                         lblOpenCount.Text = GetScalar(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'NEW'").ToString();
@@ -94,6 +94,27 @@ namespace BI_TICKETING_SYSTEM
 
                         lblClosedCount.Text = GetScalar(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE UPPER(STATUS) = 'CLOSED'").ToString();
+
+                        lblOnTimeCount.Text = GetScalar(conn,
+                            @"SELECT COUNT(*)
+                              FROM BI_OJT.TICKETS
+                              WHERE DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) >= TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')").ToString();
+
+                        lblDueTodaySummary.Text = GetScalar(conn,
+                            @"SELECT COUNT(*)
+                              FROM BI_OJT.TICKETS
+                              WHERE DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')").ToString();
+
+                        lblOverdueSummary.Text = GetScalar(conn,
+                            @"SELECT COUNT(*)
+                              FROM BI_OJT.TICKETS
+                              WHERE DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')").ToString();
                     }
 
                     else if (role == "support")
@@ -108,21 +129,21 @@ namespace BI_TICKETING_SYSTEM
 
                         lblOverdue.Text = GetScalarWithParam(conn,
                             @"SELECT COUNT(*)
-                      FROM BI_OJT.TICKETS
-                      WHERE ASSIGNED_TO_USER_ID = :userId
-                        AND DUE_DATE IS NOT NULL
-                        AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
-                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
-                            userId).ToString();
+                              FROM BI_OJT.TICKETS
+                              WHERE ASSIGNED_TO_USER_ID = :userId
+                                AND DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
+                                    userId).ToString();
 
                         lblPending.Text = GetScalarWithParam(conn,
                             @"SELECT COUNT(*)
-                      FROM BI_OJT.TICKETS
-                      WHERE ASSIGNED_TO_USER_ID = :userId
-                        AND DUE_DATE IS NOT NULL
-                        AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
-                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
-                            userId).ToString();
+                              FROM BI_OJT.TICKETS
+                              WHERE ASSIGNED_TO_USER_ID = :userId
+                                AND DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
+                                    userId).ToString();
 
                         lblOpenCount.Text = GetScalarWithParam(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId AND UPPER(STATUS) = 'NEW'",
@@ -134,6 +155,33 @@ namespace BI_TICKETING_SYSTEM
 
                         lblClosedCount.Text = GetScalarWithParam(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE ASSIGNED_TO_USER_ID = :userId AND UPPER(STATUS) = 'CLOSED'",
+                            userId).ToString();
+
+                        lblOnTimeCount.Text = GetScalarWithParam(conn,
+                            @"SELECT COUNT(*)
+                              FROM BI_OJT.TICKETS
+                              WHERE ASSIGNED_TO_USER_ID = :userId
+                                AND DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) >= TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
+                            userId).ToString();
+
+                        lblDueTodaySummary.Text = GetScalarWithParam(conn,
+                            @"SELECT COUNT(*)
+                              FROM BI_OJT.TICKETS
+                              WHERE ASSIGNED_TO_USER_ID = :userId
+                                AND DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
+                            userId).ToString();
+
+                        lblOverdueSummary.Text = GetScalarWithParam(conn,
+                            @"SELECT COUNT(*)
+                              FROM BI_OJT.TICKETS
+                              WHERE ASSIGNED_TO_USER_ID = :userId
+                                AND DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
                             userId).ToString();
                     }
 
@@ -149,21 +197,21 @@ namespace BI_TICKETING_SYSTEM
 
                         lblOverdue.Text = GetScalarWithParam(conn,
                             @"SELECT COUNT(*)
-                      FROM BI_OJT.TICKETS
-                      WHERE CREATED_BY_USER_ID = :userId
-                        AND DUE_DATE IS NOT NULL
-                        AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
-                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
-                            userId).ToString();
+                                FROM BI_OJT.TICKETS
+                                WHERE CREATED_BY_USER_ID = :userId
+                                AND DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
+                                    userId).ToString();
 
                         lblPending.Text = GetScalarWithParam(conn,
                             @"SELECT COUNT(*)
-                      FROM BI_OJT.TICKETS
-                      WHERE CREATED_BY_USER_ID = :userId
-                        AND DUE_DATE IS NOT NULL
-                        AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
-                        AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
-                            userId).ToString();
+                              FROM BI_OJT.TICKETS
+                              WHERE CREATED_BY_USER_ID = :userId
+                                AND DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
+                                    userId).ToString();
 
                         lblOpenCount.Text = GetScalarWithParam(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE CREATED_BY_USER_ID = :userId AND UPPER(STATUS) = 'NEW'",
@@ -176,6 +224,33 @@ namespace BI_TICKETING_SYSTEM
                         lblClosedCount.Text = GetScalarWithParam(conn,
                             "SELECT COUNT(*) FROM BI_OJT.TICKETS WHERE CREATED_BY_USER_ID = :userId AND UPPER(STATUS) = 'CLOSED'",
                             userId).ToString();
+
+                        lblOnTimeCount.Text = GetScalarWithParam(conn,
+                            @"SELECT COUNT(*)
+                              FROM BI_OJT.TICKETS
+                              WHERE CREATED_BY_USER_ID = :userId
+                                AND DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) >= TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
+                            userId).ToString();
+
+                        lblDueTodaySummary.Text = GetScalarWithParam(conn,
+                            @"SELECT COUNT(*)
+                              FROM BI_OJT.TICKETS
+                              WHERE CREATED_BY_USER_ID = :userId
+                                AND DUE_DATE IS NOT NULL
+                                AND TRUNC(DUE_DATE) = TRUNC(SYSDATE)
+                                AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
+                                                    userId).ToString();
+
+                        lblOverdueSummary.Text = GetScalarWithParam(conn,
+                            @"SELECT COUNT(*)
+                            FROM BI_OJT.TICKETS
+                            WHERE CREATED_BY_USER_ID = :userId
+                            AND DUE_DATE IS NOT NULL
+                            AND TRUNC(DUE_DATE) < TRUNC(SYSDATE)
+                            AND UPPER(STATUS) NOT IN ('RESOLVED', 'CLOSED')",
+                                                userId).ToString();
                     }
                 }
             }
@@ -188,6 +263,9 @@ namespace BI_TICKETING_SYSTEM
                 lblOpenCount.Text = "0";
                 lblInProgressCount.Text = "0";
                 lblClosedCount.Text = "0";
+                lblOnTimeCount.Text = "0";
+                lblDueTodaySummary.Text = "0";
+                lblOverdueSummary.Text = "0";
                 System.Diagnostics.Debug.WriteLine("Dashboard DB Error: " + ex.Message);
             }
         }

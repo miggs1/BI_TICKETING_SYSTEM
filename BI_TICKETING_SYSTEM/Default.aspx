@@ -163,18 +163,47 @@
                         </div>
                         <div class="col-4">
                             <div style="padding:14px;background:rgba(212,160,23,0.08);border-radius:10px;">
-                                <div style="font-size:22px;font-weight:700;color:#b8860b;">
+                                      <div style="font-size:22px;font-weight:700;color:#b8860b;">
                                     <asp:Label ID="lblInProgressCount" runat="server" Text="0" />
                                 </div>
                                 <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;">In Progress</div>
                             </div>
                         </div>
+
+
                         <div class="col-4">
                             <div style="padding:14px;background:rgba(0,96,100,0.06);border-radius:10px;">
                                 <div style="font-size:22px;font-weight:700;color:#006064;">
                                     <asp:Label ID="lblClosedCount" runat="server" Text="0" />
                                 </div>
                                 <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;">Closed</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- SLA MINI STATS -->
+                    <div class="row mt-3 text-center">
+                        <div class="col-4">
+                            <div style="padding:14px;background:rgba(40,167,69,0.08);border-radius:10px;">
+                                <div style="font-size:22px;font-weight:700;color:#28a745;">
+                                    <asp:Label ID="lblOnTimeCount" runat="server" Text="0" />
+                                </div>
+                                <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;">On Time</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="padding:14px;background:rgba(212,160,23,0.08);border-radius:10px;">
+                                <div style="font-size:22px;font-weight:700;color:#b8860b;">
+                                    <asp:Label ID="lblDueTodaySummary" runat="server" Text="0" />
+                                </div>
+                                <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;">Due Today</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="padding:14px;background:rgba(220,53,69,0.08);border-radius:10px;">
+                                <div style="font-size:22px;font-weight:700;color:#dc3545;">
+                                    <asp:Label ID="lblOverdueSummary" runat="server" Text="0" />
+                                </div>
+                                <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;">Overdue</div>
                             </div>
                         </div>
                     </div>

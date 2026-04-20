@@ -114,6 +114,33 @@ namespace BI_TICKETING_SYSTEM
         protected global::System.Web.UI.WebControls.Label lblClosedCount;
 
         /// <summary>
+        /// lblOnTimeCount control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Label lblOnTimeCount;
+
+        /// <summary>
+        /// lblDueTodaySummary control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Label lblDueTodaySummary;
+
+        /// <summary>
+        /// lblOverdueSummary control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Label lblOverdueSummary;
+
+        /// <summary>
         /// pnlCreateTicketAction control.
         /// </summary>
         /// <remarks>
