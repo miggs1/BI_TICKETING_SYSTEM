@@ -1,1 +1,1 @@
-﻿<%@ WebHandler Language="C#" CodeBehind="DashboardHandler.ashx.cs" Class="BI_TICKETING_SYSTEM.Handler1" %>
+﻿<%@ WebHandler Language="C#" CodeBehind="DashboardHandler.ashx.cs" Class="BI_TICKETING_SYSTEM.DashboardHandler" %>

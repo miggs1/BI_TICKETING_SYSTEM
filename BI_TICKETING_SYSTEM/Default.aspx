@@ -207,6 +207,21 @@
                             </div>
                         </div>
                     </div>
+                    <asp:Panel ID="pnlMonthlyChart" runat="server" Visible="false">
+                        <!-- MONTHLY TICKETS CHART -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div style="padding:18px;background:#fff;border-radius:12px;border:1px solid #e9ecef;">
+                                    <div style="font-size:15px;font-weight:700;color:#001f54;margin-bottom:12px;">
+                                        Tickets Issued Per Month
+                                    </div>
+                                    <div style="position:relative;height:320px;">
+                                        <canvas id="monthlyTicketsChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </asp:Panel>
                 </div>
             </div>
         </div>
@@ -249,14 +264,74 @@
 </asp:Content>
 
 <asp:Content ID="ScriptsExtra" ContentPlaceHolderID="ScriptsContent" runat="server">
-<script>
-    // Auto-refresh stats every 30 seconds
-    setInterval(function () {
-        var now = new Date();
-        $('#refreshIndicator').html(
-            '<i class="fas fa-circle" style="color:#28a745;font-size:8px;"></i> Last updated: ' +
-            now.toLocaleTimeString()
-        );
-    }, 30000);
-</script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        setInterval(function () {
+            var now = new Date();
+            $('#refreshIndicator').html(
+                '<i class="fas fa-circle" style="color:#28a745;font-size:8px;"></i> Last updated: ' +
+                now.toLocaleTimeString()
+            );
+        }, 30000);
+    </script>
+
+    <% if ((Session["UserRole"]?.ToString() ?? "").ToLower() == "admin") { %>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const chartCanvas = document.getElementById("monthlyTicketsChart");
+            if (!chartCanvas) return;
+
+            fetch('<%= ResolveUrl("~/DashboardHandler.ashx?mode=monthly") %>')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("HTTP " + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const labels = data.labels || [];
+                    const values = data.values || [];
+
+                    if (labels.length === 0 || values.length === 0) {
+                        chartCanvas.parentElement.innerHTML +=
+                            "<div style='margin-top:10px;color:#888;font-size:13px;'>No monthly ticket data available.</div>";
+                        return;
+                    }
+
+                    new Chart(chartCanvas.getContext("2d"), {
+                        type: "bar",
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: "Tickets Issued",
+                                data: values,
+                                backgroundColor: "rgba(0, 31, 84, 0.75)",
+                                borderWidth: 1,
+                                borderRadius: 6
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: { precision: 0 }
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error("Monthly chart error:", error);
+                    chartCanvas.parentElement.innerHTML +=
+                        "<div style='margin-top:10px;color:#dc3545;font-size:13px;'>Failed to load monthly chart.</div>";
+                });
+        });
+    </script>
+    <% } %>
 </asp:Content>

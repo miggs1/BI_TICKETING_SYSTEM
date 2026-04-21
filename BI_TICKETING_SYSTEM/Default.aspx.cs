@@ -32,20 +32,25 @@ namespace BI_TICKETING_SYSTEM
                     lblWelcomeMessage.Text = "You are logged into the <strong>Bureau of Immigration Ticketing System</strong>. Here is the overall system statistics.";
                     pnlAdminActions.Visible = true;
                     pnlCreateTicketAction.Visible = true;
+                    pnlMonthlyChart.Visible = true;
                     lblTotalLabel.Text = "Total Tickets";
                     break;
+
                 case "support":
                     lblRoleBadge.Text = "<span class='role-badge role-badge-support'>Support</span>";
                     lblWelcomeMessage.Text = "Here are the statistics of tickets <strong>assigned to you</strong>.";
                     pnlAdminActions.Visible = false;
                     pnlCreateTicketAction.Visible = false;
+                    pnlMonthlyChart.Visible = false;
                     lblTotalLabel.Text = "My Assigned Tickets";
                     break;
-                default: // user
+
+                default:
                     lblRoleBadge.Text = "<span class='role-badge role-badge-user'>User</span>";
                     lblWelcomeMessage.Text = "Here are the statistics of <strong>your submitted tickets</strong>.";
                     pnlAdminActions.Visible = false;
                     pnlCreateTicketAction.Visible = true;
+                    pnlMonthlyChart.Visible = false;
                     lblTotalLabel.Text = "My Tickets";
                     break;
             }

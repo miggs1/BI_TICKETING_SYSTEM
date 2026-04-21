@@ -141,6 +141,15 @@ namespace BI_TICKETING_SYSTEM
         protected global::System.Web.UI.WebControls.Label lblOverdueSummary;
 
         /// <summary>
+        /// pnlMonthlyChart control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.Panel pnlMonthlyChart;
+
+        /// <summary>
         /// pnlCreateTicketAction control.
         /// </summary>
         /// <remarks>
