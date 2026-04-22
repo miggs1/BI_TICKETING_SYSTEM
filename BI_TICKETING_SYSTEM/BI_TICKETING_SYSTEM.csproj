@@ -283,6 +283,7 @@
     <Compile Include="Helpers\AuditHelper.cs" />
     <Compile Include="Helpers\DatabaseHelper.cs" />
     <Compile Include="Helpers\EmailHelper.cs" />
+    <Compile Include="Helpers\NotificationHelper.cs" />
     <Compile Include="Helpers\PasswordHelper.cs" />
     <Compile Include="Helpers\SLAHelper.cs" />
     <Compile Include="Helpers\UserService.cs" />
