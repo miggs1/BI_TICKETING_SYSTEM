@@ -528,13 +528,13 @@ namespace BI_TICKETING_SYSTEM.Pages
         protected global::System.Web.UI.WebControls.FileUpload fuEditAttachment;
 
         /// <summary>
-        /// btnSaveEdit control.
+        /// btnSaveEditServer control.
         /// </summary>
         /// <remarks>
         /// Auto-generated field.
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
-        protected global::System.Web.UI.WebControls.Button btnSaveEdit;
+        protected global::System.Web.UI.WebControls.Button btnSaveEditServer;
 
         /// <summary>
         /// hfShowModal control.
@@ -598,5 +598,41 @@ namespace BI_TICKETING_SYSTEM.Pages
         /// To modify move field declaration from designer file to code-behind file.
         /// </remarks>
         protected global::System.Web.UI.WebControls.HiddenField hfViewTicketId;
+
+        /// <summary>
+        /// hfEditOriginalTitle control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.HiddenField hfEditOriginalTitle;
+
+        /// <summary>
+        /// hfEditOriginalDescription control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.HiddenField hfEditOriginalDescription;
+
+        /// <summary>
+        /// hfEditOriginalDueDate control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.HiddenField hfEditOriginalDueDate;
+
+        /// <summary>
+        /// hfEditHasChanges control.
+        /// </summary>
+        /// <remarks>
+        /// Auto-generated field.
+        /// To modify move field declaration from designer file to code-behind file.
+        /// </remarks>
+        protected global::System.Web.UI.WebControls.HiddenField hfEditHasChanges;
     }
 }
