@@ -9,6 +9,7 @@ using iTextSharp.text;
 using iTextSharp.text.pdf;
 using System.Configuration;
 using System.Drawing;
+using System.Linq;
 
 namespace BI_TICKETING_SYSTEM.Pages
 {
@@ -366,6 +367,28 @@ namespace BI_TICKETING_SYSTEM.Pages
                         newStatus
                     );
 
+                    var info = GetTicketNotificationInfo(ticketId, conn);
+
+                    List<int> recipients = new List<int>();
+
+                    if (info.CreatedByUserId > 0)
+                    {
+                        recipients.Add(info.CreatedByUserId);
+                    }
+
+                    if (info.AssignedToUserId.HasValue)
+                    {
+                        recipients.Add(info.AssignedToUserId.Value);
+                    }
+
+                    SendNotificationToMany(
+                        recipients,
+                        "Ticket Status Updated",
+                        $"Ticket {info.TicketNumber} status was changed to {newStatus}.",
+                        info.AssignedToUserId.HasValue ? "~/Pages/AssignedTickets.aspx" : "~/Pages/Tickets.aspx",
+                        ticketId
+                    );
+
                     ShowSuccess("Status updated successfully!");
                     LoadTickets();
                 }
@@ -428,6 +451,18 @@ namespace BI_TICKETING_SYSTEM.Pages
                     {
                         string assignedName = ddl.SelectedItem.Text;
                         InsertAssignmentRemark(ticketId, assignedName, conn);
+
+                        var info = GetTicketNotificationInfo(ticketId, conn);
+
+                        int assignedSupportUserId = Convert.ToInt32(assignedTo);
+
+                        NotificationHelper.SendNotification(
+                            assignedSupportUserId,
+                            "Ticket Assigned",
+                            $"You have been assigned to ticket {info.TicketNumber}.",
+                            "~/Pages/AssignedTickets.aspx",
+                            ticketId
+                        );
                     }
                     else
                     {
@@ -689,6 +724,26 @@ namespace BI_TICKETING_SYSTEM.Pages
                             txtDescription.Text = "";
                             txtDueDate.Text = "";
                             ddlCreatePriority.SelectedIndex = 0;
+
+                            string ticketLinkPage = "~/Pages/Tickets.aspx";
+
+                            List<int> recipients = new List<int>();
+                            recipients.AddRange(GetActiveUserIdsByRole("admin", conn));
+                            recipients.AddRange(GetActiveUserIdsByRole("support", conn));
+
+                            if (CurrentUserID > 0)
+                            {
+                                recipients.Add(CurrentUserID);
+                            }
+
+                            SendNotificationToMany(
+                                recipients,
+                                "New Ticket Created",
+                                $"Ticket {ticketNumber} was created by {CurrentUserName}.",
+                                ticketLinkPage,
+                                (int)ticketId
+                            );
+
 
                             ShowSuccess($"Ticket {ticketNumber} submitted successfully!");
                             Response.Redirect(Request.RawUrl);
@@ -2018,6 +2073,74 @@ namespace BI_TICKETING_SYSTEM.Pages
             hfSwalType.Value = "error";
             pnlSuccess.Visible = false;
             pnlError.Visible = false;
+        }
+
+        // GET RECIPIENTS FOR NOTIFICATIONS
+
+        private List<int> GetActiveUserIdsByRole(string role, OracleConnection conn)
+        {
+            List<int> ids = new List<int>();
+
+            string sql = @"SELECT USER_ID
+                   FROM BI_OJT.USERS
+                   WHERE LOWER(ROLE) = :role
+                     AND LOWER(STATUS) = 'active'";
+
+            using (OracleCommand cmd = new OracleCommand(sql, conn))
+            {
+                cmd.BindByName = true;
+                cmd.Parameters.Add("role", OracleDbType.Varchar2).Value = role.ToLower();
+
+                using (OracleDataReader dr = cmd.ExecuteReader())
+                {
+                    while (dr.Read())
+                    {
+                        ids.Add(Convert.ToInt32(dr["USER_ID"]));
+                    }
+                }
+            }
+
+            return ids;
+        }
+
+        private void SendNotificationToMany(IEnumerable<int> userIds, string title, string message, string linkPage, int? ticketId = null)
+        {
+            foreach (int userId in userIds.Distinct())
+            {
+                if (userId > 0)
+                {
+                    NotificationHelper.SendNotification(userId, title, message, linkPage, ticketId);
+                }
+            }
+        }
+
+        private (string TicketNumber, int CreatedByUserId, int? AssignedToUserId, string Status) GetTicketNotificationInfo(int ticketId, OracleConnection conn)
+        {
+            string sql = @"SELECT TICKET_NUMBER, CREATED_BY_USER_ID, ASSIGNED_TO_USER_ID, STATUS
+                   FROM BI_OJT.TICKETS
+                   WHERE TICKET_ID = :ticketId";
+
+            using (OracleCommand cmd = new OracleCommand(sql, conn))
+            {
+                cmd.BindByName = true;
+                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+
+                using (OracleDataReader dr = cmd.ExecuteReader())
+                {
+                    if (dr.Read())
+                    {
+                        return
+                        (
+                            dr["TICKET_NUMBER"]?.ToString() ?? "",
+                            dr["CREATED_BY_USER_ID"] == DBNull.Value ? 0 : Convert.ToInt32(dr["CREATED_BY_USER_ID"]),
+                            dr["ASSIGNED_TO_USER_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(dr["ASSIGNED_TO_USER_ID"]),
+                            dr["STATUS"]?.ToString() ?? ""
+                        );
+                    }
+                }
+            }
+
+            return ("", 0, null, "");
         }
     }
 }

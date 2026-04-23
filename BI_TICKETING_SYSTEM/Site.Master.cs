@@ -71,6 +71,16 @@ namespace BI_TICKETING_SYSTEM
         }
         private void LoadNotifications()
         {
+            if (Session["UserID"] == null)
+            {
+                lblNotifCount.Text = "";
+                lblNotifCount.Visible = false;
+                rptNotifications.DataSource = null;
+                rptNotifications.DataBind();
+                pnlNoNotifs.Visible = true;
+                return;
+            }
+
             int userId = Convert.ToInt32(Session["UserID"]);
 
             using (OracleConnection conn = DatabaseHelper.GetConnection())
@@ -80,6 +90,7 @@ namespace BI_TICKETING_SYSTEM
                 string countSql = "SELECT COUNT(*) FROM BI_OJT.NOTIFICATIONS WHERE USER_ID = :userId AND IS_READ = 0";
                 using (OracleCommand countCmd = new OracleCommand(countSql, conn))
                 {
+                    countCmd.BindByName = true;
                     countCmd.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
                     int unreadCount = Convert.ToInt32(countCmd.ExecuteScalar());
 
@@ -87,16 +98,20 @@ namespace BI_TICKETING_SYSTEM
                     lblNotifCount.Visible = unreadCount > 0;
                 }
 
-                string sql = @"SELECT * FROM (
-                                SELECT NOTIFICATION_ID, MESSAGE, TICKET_ID, IS_READ, CREATED_AT 
-                                FROM BI_OJT.NOTIFICATIONS 
-                                WHERE USER_ID = :userId 
-                                ORDER BY CREATED_AT DESC
-                               ) WHERE ROWNUM <= 10";
+                string sql = @"
+                    SELECT * FROM (
+                        SELECT NOTIFICATION_ID, TITLE, MESSAGE, TICKET_ID, IS_READ, CREATED_AT, LINK_PAGE
+                        FROM BI_OJT.NOTIFICATIONS
+                        WHERE USER_ID = :userId
+                        ORDER BY CREATED_AT DESC
+                    )
+                    WHERE ROWNUM <= 10";
 
                 using (OracleCommand cmd = new OracleCommand(sql, conn))
                 {
+                    cmd.BindByName = true;
                     cmd.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
+
                     OracleDataAdapter da = new OracleDataAdapter(cmd);
                     DataTable dt = new DataTable();
                     da.Fill(dt);
@@ -109,6 +124,8 @@ namespace BI_TICKETING_SYSTEM
                     }
                     else
                     {
+                        rptNotifications.DataSource = null;
+                        rptNotifications.DataBind();
                         pnlNoNotifs.Visible = true;
                     }
                 }
@@ -119,20 +136,36 @@ namespace BI_TICKETING_SYSTEM
             if (e.CommandName == "MarkRead")
             {
                 int notifId = Convert.ToInt32(e.CommandArgument);
+                string linkPage = "~/Pages/Tickets.aspx";
 
                 using (OracleConnection conn = DatabaseHelper.GetConnection())
                 {
                     conn.Open();
-                    string sql = "UPDATE BI_OJT.NOTIFICATIONS SET IS_READ = 1 WHERE NOTIFICATION_ID = :notifId";
-                    using (OracleCommand cmd = new OracleCommand(sql, conn))
+
+                    string getSql = "SELECT LINK_PAGE FROM BI_OJT.NOTIFICATIONS WHERE NOTIFICATION_ID = :notifId";
+                    using (OracleCommand getCmd = new OracleCommand(getSql, conn))
                     {
-                        cmd.Parameters.Add("notifId", OracleDbType.Int32).Value = notifId;
-                        cmd.ExecuteNonQuery();
+                        getCmd.BindByName = true;
+                        getCmd.Parameters.Add("notifId", OracleDbType.Int32).Value = notifId;
+
+                        object result = getCmd.ExecuteScalar();
+                        if (result != null && result != DBNull.Value && !string.IsNullOrWhiteSpace(result.ToString()))
+                        {
+                            linkPage = result.ToString();
+                        }
+                    }
+
+                    string updateSql = "UPDATE BI_OJT.NOTIFICATIONS SET IS_READ = 1 WHERE NOTIFICATION_ID = :notifId";
+                    using (OracleCommand updateCmd = new OracleCommand(updateSql, conn))
+                    {
+                        updateCmd.BindByName = true;
+                        updateCmd.Parameters.Add("notifId", OracleDbType.Int32).Value = notifId;
+                        updateCmd.ExecuteNonQuery();
                     }
                 }
 
                 LoadNotifications();
-                Response.Redirect("~/Pages/Tickets.aspx");
+                Response.Redirect(linkPage);
             }
         }
     }
