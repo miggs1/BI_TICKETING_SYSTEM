@@ -1406,6 +1406,11 @@ namespace BI_TICKETING_SYSTEM.Pages
                         txtEditDueDate.Text = row["DUE_DATE"] != DBNull.Value
                             ? Convert.ToDateTime(row["DUE_DATE"]).ToString("yyyy-MM-dd")
                             : string.Empty;
+                        hfEditOriginalTitle.Value = txtEditTitle.Text;
+                        hfEditOriginalDescription.Value = txtEditDescription.Text;
+                        hfEditOriginalDueDate.Value = txtEditDueDate.Text;
+                        hfEditHasChanges.Value = "false";
+
                         string attachmentSql = @"
                             SELECT ORIGINAL_FILE_NAME
                             FROM BI_OJT.ATTACHMENTS
@@ -1423,6 +1428,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                             else
                                 lblEditAttachmentStatus.Text = "No attachment uploaded";
                         }
+
                         hfShowModal.Value = "edit";
                     }
                 }
@@ -1435,6 +1441,13 @@ namespace BI_TICKETING_SYSTEM.Pages
 
         protected void btnSaveEdit_Click(object sender, EventArgs e)
         {
+            if (hfEditHasChanges.Value != "true")
+            {
+                hfShowModal.Value = "edit";
+                ShowError("No changes detected.");
+                return;
+            }
+
             try
             {
                 int ticketId = Convert.ToInt32(hfEditTicketId.Value);
@@ -1687,6 +1700,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                     }
 
                     hfShowModal.Value = "";
+                    hfEditHasChanges.Value = "false";
                     ShowSuccess(successMessage);
                     LoadTickets();
                 }
@@ -1949,6 +1963,12 @@ namespace BI_TICKETING_SYSTEM.Pages
             LoadTickets();
         }
 
+        protected void txtSearch_TextChanged(object sender, EventArgs e)
+        {
+            CurrentPage = 1;
+            LoadTickets();
+        }
+
         protected void ddlFilter_Changed(object sender, EventArgs e)
         {
             CurrentPage = 1;
@@ -1963,7 +1983,70 @@ namespace BI_TICKETING_SYSTEM.Pages
 
         protected void btnNext_Click(object sender, EventArgs e)
         {
-            CurrentPage++;
+            string search = txtSearch.Text.Trim();
+            string filterStatus = ddlFilterStatus.SelectedValue;
+            string filterPriority = ddlFilterPriority.SelectedValue;
+            string role = CurrentRole.ToLower();
+            int userId = CurrentUserID;
+
+            try
+            {
+                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                {
+                    conn.Open();
+
+                    string sql = @"
+                                    SELECT COUNT(*) 
+                                    FROM BI_OJT.TICKETS T
+                                    WHERE 1=1 ";
+
+                    if (role == "user")
+                        sql += " AND T.CREATED_BY_USER_ID = :userId ";
+
+                    if (!string.IsNullOrEmpty(search))
+                        sql += " AND (UPPER(T.TICKET_NUMBER) LIKE UPPER(:search) OR UPPER(T.TITLE) LIKE UPPER(:search)) ";
+
+                    if (!string.IsNullOrEmpty(filterStatus))
+                        sql += " AND UPPER(T.STATUS) = UPPER(:filterStatus) ";
+
+                    if (!string.IsNullOrEmpty(filterPriority))
+                        sql += " AND UPPER(T.PRIORITY) = UPPER(:filterPriority) ";
+
+                    using (OracleCommand cmd = new OracleCommand(sql, conn))
+                    {
+                        cmd.BindByName = true;
+
+                        if (role == "user")
+                            cmd.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
+
+                        if (!string.IsNullOrEmpty(search))
+                            cmd.Parameters.Add("search", OracleDbType.Varchar2).Value = "%" + search + "%";
+
+                        if (!string.IsNullOrEmpty(filterStatus))
+                            cmd.Parameters.Add("filterStatus", OracleDbType.Varchar2).Value = filterStatus;
+
+                        if (!string.IsNullOrEmpty(filterPriority))
+                            cmd.Parameters.Add("filterPriority", OracleDbType.Varchar2).Value = filterPriority;
+
+                        int totalRecords = Convert.ToInt32(cmd.ExecuteScalar());
+                        int totalPages = (int)Math.Ceiling((double)totalRecords / PageSize);
+
+                        if (totalPages <= 0)
+                        {
+                            CurrentPage = 1;
+                        }
+                        else if (CurrentPage < totalPages)
+                        {
+                            CurrentPage++;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Error navigating pages: " + ex.Message);
+            }
+
             LoadTickets();
         }
 

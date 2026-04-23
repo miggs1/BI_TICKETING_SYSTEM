@@ -259,12 +259,12 @@
                         </div>
                     </div>
                      <%-- Description --%>
-                    <div class="row mb-3">
+                     <div class="row mb-3">
                         <div class="col-12">
                             <label class="form-label">Description</label>
-                            <p class="form-control-plaintext" style="white-space:pre-wrap; background:#f8f9fa; border-radius:8px; padding:10px;">
+                            <div class="form-control-plaintext" style="white-space: pre-wrap; text-align: left; margin: 0; padding: 0;">
                                 <asp:Label ID="lblViewDescription" runat="server" />
-                            </p>
+                            </div>
                         </div>
                     </div>
 

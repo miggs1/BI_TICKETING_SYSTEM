@@ -56,6 +56,8 @@
     .audit-badge-user { background: #dc3545; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: inline-block; }
     .audit-badge-support { background: #ffc107; color: #333; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: inline-block; }
     .audit-badge-default { background: #6c757d; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px; display: inline-block; }
+    .btn-disabled-look { opacity: 0.5; cursor: not-allowed; }
+    .description-display { white-space: pre-wrap; text-align: left; margin: 0; padding: 10px; background: #f8f9fa; border-radius: 8px; }
 </style>
 </asp:Content>
 
@@ -84,7 +86,7 @@
             <div class="row mb-3">
                 <div class="col-md-6">
                     <div class="input-group">
-                        <asp:TextBox ID="txtSearch" runat="server" CssClass="form-control search-bar" placeholder="Search by ticket number or title..." />
+                        <asp:TextBox ID="txtSearch" runat="server" CssClass="form-control search-bar" placeholder="Search by ticket number or title..." AutoPostBack="true" OnTextChanged="txtSearch_TextChanged" />
                         <div class="input-group-append">
                             <asp:Button ID="btnSearch" runat="server" CssClass="btn-search" Text="Search" OnClick="btnSearch_Click" />
                         </div>
@@ -138,7 +140,7 @@
                             <td><%# Eval("TITLE") %></td>
                             <td><%# Eval("CREATED_BY_NAME") %></td>
                             <td>
-                                <asp:DropDownList ID="ddlRowPriority" runat="server" CssClass="dropdown-priority"
+                                <asp:DropDownList ID="ddlRowPriority" runat="server" AutoPostBack="true" CssClass="dropdown-priority"
                                     Visible='<%# Session["UserRole"] != null && (Session["UserRole"].ToString().ToLower() == "admin" || Session["UserRole"].ToString().ToLower() == "user") %>'
                                     OnSelectedIndexChanged="ddlRowPriority_Changed">
                                     <asp:ListItem Value="">NOT SET</asp:ListItem>
@@ -154,7 +156,7 @@
                                 </asp:PlaceHolder>
                             </td>
                             <td>
-                                <asp:DropDownList ID="ddlRowStatus" runat="server" CssClass="dropdown-status"
+                                <asp:DropDownList ID="ddlRowStatus" runat="server" AutoPostBack="true" CssClass="dropdown-status"
                                     Visible='<%# Session["UserRole"] != null &&
                                         (Session["UserRole"].ToString().ToLower() == "admin" ||
                                         Session["UserRole"].ToString().ToLower() == "user") %>'
@@ -176,7 +178,7 @@
                                 <asp:HiddenField ID="hfRowTicketId" runat="server" Value='<%# Eval("TICKET_ID") %>' />
                             </td>
                             <td>
-                                <asp:DropDownList ID="ddlRowAssign" runat="server" CssClass="dropdown-assign"
+                                <asp:DropDownList ID="ddlRowAssign" runat="server" AutoPostBack="true" CssClass="dropdown-assign"
                                     Visible='<%# Session["UserRole"] != null && Session["UserRole"].ToString().ToLower() == "admin" %>'
                                     OnSelectedIndexChanged="ddlRowAssign_Changed">
                                 </asp:DropDownList>
@@ -247,8 +249,8 @@
             <div class="d-flex justify-content-between align-items-center mt-3">
                 <asp:Label ID="lblPaginationInfo" runat="server" CssClass="pagination-info" />
                 <div>
-                    <asp:Button ID="btnPrev" runat="server" Text="Prev" CssClass="btn btn-sm btn-outline-secondary mr-1" OnClick="btnPrev_Click" />
-                    <asp:Button ID="btnNext" runat="server" Text="Next" CssClass="btn btn-sm btn-outline-secondary" OnClick="btnNext_Click" />
+                    <asp:Button ID="btnPrev" runat="server" Text="Prev" CssClass="btn btn-sm btn-outline-secondary mr-1" OnClick="btnPrev_Click" CausesValidation="false" UseSubmitBehavior="false" />
+                    <asp:Button ID="btnNext" runat="server" Text="Next" CssClass="btn btn-sm btn-outline-secondary" OnClick="btnNext_Click" CausesValidation="false" UseSubmitBehavior="false" />
                 </div>
             </div>
         </div>
@@ -327,7 +329,8 @@
                                     ControlToValidate="txtDueDate"
                                     ErrorMessage="Due Date is required."
                                     ForeColor="Red"
-                                    Display="Dynamic">
+                                    Display="Dynamic"
+                                    ValidationGroup="CreateTicket">
                                 </asp:RequiredFieldValidator>
                             </div>
                     </div>
@@ -373,9 +376,9 @@
                     <div class="row mb-3">
                         <div class="col-12">
                             <label class="form-label">Description</label>
-                            <p class="form-control-plaintext" style="white-space:pre-wrap; background:#f8f9fa; border-radius:8px; padding:10px;">
+                            <div class="form-control-plaintext" style="white-space: pre-wrap; text-align: left; margin: 0; padding: 0;">
                                 <asp:Label ID="lblViewDescription" runat="server" />
-                            </p>
+                            </div>
                         </div>
                     </div>
                     <div class="row mb-3">
@@ -598,9 +601,11 @@
 
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <asp:Button ID="btnSaveEdit" runat="server" Text="Save Changes"
-                    CssClass="btn btn-primary" OnClick="btnSaveEdit_Click"
-                    CausesValidation="false" UseSubmitBehavior="false" />
+                <button id="btnSaveEditUi" type="button" class="btn btn-primary btn-disabled-look" disabled onclick="triggerEditSave();">Save Changes</button>
+                <asp:Button ID="btnSaveEditServer" runat="server" Text="Save Changes"
+                    Style="display:none;"
+                    OnClick="btnSaveEdit_Click"
+                    CausesValidation="false" />
             </div>
 
         </div>
@@ -610,10 +615,18 @@
     <asp:HiddenField ID="hfShowModal" runat="server" Value="" />
     <asp:HiddenField ID="hfSwalMessage" runat="server" Value="" />
     <asp:HiddenField ID="hfSwalType" runat="server" Value="" />
+
     <asp:HiddenField ID="hfAttachFilePath" runat="server" Value="" />
     <asp:HiddenField ID="hfAttachOriginalName" runat="server" Value="" />
     <asp:HiddenField ID="hfAttachFileType" runat="server" Value="" />
+
     <asp:HiddenField ID="hfViewTicketId" runat="server" />
+
+    <asp:HiddenField ID="hfEditOriginalTitle" runat="server" />
+    <asp:HiddenField ID="hfEditOriginalDescription" runat="server" />
+    <asp:HiddenField ID="hfEditOriginalDueDate" runat="server" />
+    <asp:HiddenField ID="hfEditHasChanges" runat="server" Value="false" />
+
 
 </asp:Content>
 
@@ -643,9 +656,14 @@
             $('#modalViewTicket').modal('show');
         } else if (modal === 'edit') {
             $('#modalEditTicket').modal('show');
+            setTimeout(function () { setupEditChangeWatcher(); }, 200);
         } else if (modal === 'create') {
             $('#modalCreateTicket').modal('show');
         }
+
+        $('#modalEditTicket').on('shown.bs.modal', function () {
+            setupEditChangeWatcher();
+        });
 
         $('#modalViewTicket').on('shown.bs.modal', function () {
             auditCurrentPage = 1;
@@ -673,6 +691,53 @@
         setTimeout(function () { $('#modalViewTicket').modal('show'); }, 300);
     }
 
+    function triggerEditSave() {
+        var hasChanges = document.getElementById('<%= hfEditHasChanges.ClientID %>').value;
+        if (hasChanges === 'true') {
+            document.getElementById('<%= btnSaveEditServer.ClientID %>').click();
+        }
+    }
+
+    function setupEditChangeWatcher() {
+        var title = document.getElementById('<%= txtEditTitle.ClientID %>');
+        var description = document.getElementById('<%= txtEditDescription.ClientID %>');
+        var dueDate = document.getElementById('<%= txtEditDueDate.ClientID %>');
+        var attachment = document.getElementById('<%= fuEditAttachment.ClientID %>');
+        var saveBtn = document.getElementById('btnSaveEditUi');
+        var hasChangesField = document.getElementById('<%= hfEditHasChanges.ClientID %>');
+
+        var originalTitle = document.getElementById('<%= hfEditOriginalTitle.ClientID %>').value || '';
+        var originalDescription = document.getElementById('<%= hfEditOriginalDescription.ClientID %>').value || '';
+        var originalDueDate = document.getElementById('<%= hfEditOriginalDueDate.ClientID %>').value || '';
+
+        if (!title || !description || !dueDate || !attachment || !saveBtn || !hasChangesField) return;
+
+        function checkForChanges() {
+            var titleChanged = title.value !== originalTitle;
+            var descriptionChanged = description.value !== originalDescription;
+            var dueDateChanged = dueDate.value !== originalDueDate;
+            var attachmentChanged = attachment.value !== '';
+
+            var hasChanges = titleChanged || descriptionChanged || dueDateChanged || attachmentChanged;
+
+            if (hasChanges) {
+                hasChangesField.value = 'true';
+                saveBtn.disabled = false;
+                saveBtn.classList.remove('btn-disabled-look');
+            } else {
+                hasChangesField.value = 'false';
+                saveBtn.disabled = true;
+                saveBtn.classList.add('btn-disabled-look');
+            }
+        }
+
+        title.oninput = checkForChanges;
+        description.oninput = checkForChanges;
+        dueDate.onchange = checkForChanges;
+        attachment.onchange = checkForChanges;
+
+        checkForChanges();
+    }
     var auditCurrentPage = 1;
     var auditPageSize = 5;
 
