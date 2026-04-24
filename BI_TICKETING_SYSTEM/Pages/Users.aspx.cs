@@ -246,26 +246,69 @@ namespace BI_TICKETING_SYSTEM.Pages
                     return;
                 }
 
-                using (OracleConnection conn = DatabaseHelper.GetConnection())
+                try
                 {
-                    conn.Open();
-
-                    var oldSnap = GetUserSnapshot(userId, conn);
-
-                    string query = "DELETE FROM USERS WHERE USER_ID = :id";
-
-                    using (OracleCommand cmd = new OracleCommand(query, conn))
+                    using (OracleConnection conn = DatabaseHelper.GetConnection())
                     {
-                        cmd.BindByName = true;
-                        cmd.Parameters.Add(":id", userId);
-                        cmd.ExecuteNonQuery();
+                        conn.Open();
+
+                        var oldSnap = GetUserSnapshot(userId, conn);
+
+                        using (OracleTransaction txn = conn.BeginTransaction())
+                        {
+                            try
+                            {
+                                using (var delRemarks = new OracleCommand("DELETE FROM BI_OJT.TICKET_REMARKS WHERE USER_ID = :userId", conn))
+                                {
+                                    delRemarks.Transaction = txn;
+                                    delRemarks.BindByName = true;
+                                    delRemarks.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
+                                    delRemarks.ExecuteNonQuery();
+                                }
+
+                                using (var delNotifications = new OracleCommand("DELETE FROM BI_OJT.NOTIFICATIONS WHERE USER_ID = :userId", conn))
+                                {
+                                    delNotifications.Transaction = txn;
+                                    delNotifications.BindByName = true;
+                                    delNotifications.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
+                                    delNotifications.ExecuteNonQuery();
+                                }
+
+                                using (var nullAudit = new OracleCommand("UPDATE BI_OJT.AUDIT_LOGS SET USER_ID = NULL WHERE USER_ID = :userId", conn))
+                                {
+                                    nullAudit.Transaction = txn;
+                                    nullAudit.BindByName = true;
+                                    nullAudit.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
+                                    nullAudit.ExecuteNonQuery();
+                                }
+
+                                using (var cmd = new OracleCommand("DELETE FROM BI_OJT.USERS WHERE USER_ID = :userId", conn))
+                                {
+                                    cmd.Transaction = txn;
+                                    cmd.BindByName = true;
+                                    cmd.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
+                                    cmd.ExecuteNonQuery();
+                                }
+
+                                txn.Commit();
+                            }
+                            catch
+                            {
+                                txn.Rollback();
+                                throw;
+                            }
+                        }
+
+                        LogUserAudit("DELETE_USER", oldSnap, null);
                     }
 
-                    LogUserAudit("DELETE_USER", oldSnap, null);
+                    ShowSuccess("User deleted successfully");
+                    LoadUsers();
                 }
-
-                ShowSuccess("User deleted");
-                LoadUsers();
+                catch (Exception ex)
+                {
+                    ShowError("Error deleting user: " + ex.Message);
+                }
                 return;
             }
         }

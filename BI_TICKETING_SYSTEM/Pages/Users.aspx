@@ -131,6 +131,25 @@ Inherits="BI_TICKETING_SYSTEM.Pages.Users" %>
             });
             return false;
         }
+
+        function confirmDelete(btn) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'This user will be permanently deleted!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, delete it!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    btn.removeAttribute('onclick');
+                    btn.click();
+                }
+            });
+            return false;
+        }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -257,7 +276,7 @@ Inherits="BI_TICKETING_SYSTEM.Pages.Users" %>
                         CommandName="DeleteUser"
                         CommandArgument='<%# Eval("USER_ID") %>'
                         ToolTip="Delete User"
-                        OnClientClick='<%# "return confirmDeleteUser(this, \"" + Eval("FULL_NAME") + "\");" %>'>
+                        OnClientClick="return confirmDelete(this);">
                         <i class="fa-solid fa-trash"></i>
                     </asp:LinkButton>
 
@@ -357,7 +376,9 @@ Inherits="BI_TICKETING_SYSTEM.Pages.Users" %>
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="fas fa-user-edit mr-2"></i>Edit User</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
             </div>
             <div class="modal-body">
                 <asp:HiddenField ID="hfEditUserId" runat="server" />
@@ -382,7 +403,7 @@ Inherits="BI_TICKETING_SYSTEM.Pages.Users" %>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                 <button type="button" id="btnSaveEditUserUI" class="btn btn-primary" disabled onclick="triggerSaveEditUser(); return false;">Save Changes</button>
                 <asp:Button ID="btnSaveEditUser" runat="server" Text="Save" OnClick="btnSaveEditUser_Click" style="display:none;" />
             </div>
@@ -396,7 +417,9 @@ Inherits="BI_TICKETING_SYSTEM.Pages.Users" %>
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="fas fa-key mr-2"></i>Reset Password</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
             </div>
             <div class="modal-body">
                 <asp:HiddenField ID="hfResetUserId" runat="server" />
@@ -413,7 +436,7 @@ Inherits="BI_TICKETING_SYSTEM.Pages.Users" %>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                 <button type="button" id="btnSaveResetPasswordUI" class="btn btn-primary" disabled onclick="triggerSaveResetPassword(); return false;">Save Changes</button>
                 <asp:Button ID="btnSaveResetPassword" runat="server" Text="Save" OnClick="btnSaveResetPassword_Click" style="display:none;" />
             </div>
