@@ -342,6 +342,50 @@ namespace BI_TICKETING_SYSTEM.Pages
 
                     AddLogEntry(dtDisplay, row, $"{fullName} uploaded: {fileName} on Ticket {ticketNumber}");
                 }
+
+                else if (tableName == "USERS")
+                {
+                    JObject oldObj = TryParseJson(oldJson);
+                    JObject newObj = TryParseJson(newJson);
+
+                    string adminName = Convert.ToString(row["FULL_NAME"]);
+
+                    string targetName =
+                        newObj?["FULL_NAME"]?.ToString()
+                        ?? oldObj?["FULL_NAME"]?.ToString()
+                        ?? "user";
+
+                    if (action == "CREATE_USER")
+                    {
+                        AddLogEntry(dtDisplay, row, $"{adminName} created user {targetName}");
+                    }
+                    else if (action == "DELETE_USER")
+                    {
+                        AddLogEntry(dtDisplay, row, $"{adminName} deleted user {targetName}");
+                    }
+                    else if (action == "RESET_PASSWORD")
+                    {
+                        AddLogEntry(dtDisplay, row, $"{adminName} reset password for {targetName}");
+                    }
+                    else
+                    {
+                        string oldName = oldObj?["FULL_NAME"]?.ToString();
+                        string newName = newObj?["FULL_NAME"]?.ToString();
+                        string oldUsername = oldObj?["USERNAME"]?.ToString();
+                        string newUsername = newObj?["USERNAME"]?.ToString();
+                        string oldEmail = oldObj?["EMAIL"]?.ToString();
+                        string newEmail = newObj?["EMAIL"]?.ToString();
+
+                        if (oldName != newName)
+                            AddLogEntry(dtDisplay, row, $"{adminName} changed full name from {oldName ?? "-"} to {newName ?? "-"}");
+
+                        if (oldUsername != newUsername)
+                            AddLogEntry(dtDisplay, row, $"{adminName} changed username from {oldUsername ?? "-"} to {newUsername ?? "-"}");
+
+                        if (oldEmail != newEmail)
+                            AddLogEntry(dtDisplay, row, $"{adminName} changed email from {oldEmail ?? "-"} to {newEmail ?? "-"}");
+                    }
+                }
             }
 
             // 4. APPLY SORTING TO THE FINAL DISPLAY TABLE

@@ -190,8 +190,11 @@ namespace BI_TICKETING_SYSTEM.Pages
                 }
 
                 string insert = @"
-                        INSERT INTO USERS (USER_ID, FULL_NAME, USERNAME, EMAIL, PASSWORD, ROLE, STATUS, CREATED_AT)
-                        VALUES (USERS_SEQ.NEXTVAL, :name, :uname, :email, :pass, :role, :status, SYSDATE)";
+                        INSERT INTO BI_OJT.USERS 
+                        (USER_ID, FULL_NAME, USERNAME, EMAIL, PASSWORD, ROLE, STATUS, CREATED_AT)
+                        VALUES 
+                        (BI_OJT.USERS_SEQ.NEXTVAL, :name, :uname, :email, :pass, :role, :status, SYSDATE)
+                        RETURNING USER_ID INTO :newUserId";
 
                 using (var cmd = new OracleCommand(insert, conn))
                 {
@@ -202,9 +205,16 @@ namespace BI_TICKETING_SYSTEM.Pages
                     cmd.Parameters.Add(":pass", password);
                     cmd.Parameters.Add(":role", role);
                     cmd.Parameters.Add(":status", "Active");
+                    OracleParameter newUserIdParam = new OracleParameter("newUserId", OracleDbType.Int32);
+                    newUserIdParam.Direction = ParameterDirection.Output;
+                    cmd.Parameters.Add(newUserIdParam);
                     try
                     {
                         cmd.ExecuteNonQuery();
+
+                        int newUserId = Convert.ToInt32(newUserIdParam.Value.ToString());
+                        var newSnap = GetUserSnapshot(newUserId, conn);
+                        LogUserAudit("CREATE_USER", null, newSnap);
                     }
                     catch (OracleException ex) when (ex.Number == 1)
                     {
@@ -646,10 +656,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
         private void LogUserAudit(string action, Dictionary<string, object> oldSnap, Dictionary<string, object> newSnap)
         {
-            var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
-            string oldJson = oldSnap == null ? null : serializer.Serialize(oldSnap);
-            string newJson = newSnap == null ? null : serializer.Serialize(newSnap);
-            AuditHelper.Log(CurrentUserID, action, oldJson, newJson);
+            AuditHelper.LogUserAction(CurrentUserID, action, oldSnap, newSnap);
         }
 
 
