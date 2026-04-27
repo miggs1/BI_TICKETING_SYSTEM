@@ -214,8 +214,8 @@ namespace BI_TICKETING_SYSTEM
         }
         private void LoadNotifications()
         {
-            btnClearNotifications.Enabled = false;
-            btnClearNotifications.Style["color"] = "#6c757d";
+            btnMarkAsRead.Enabled = false;
+            btnMarkAsRead.Style["color"] = "#6c757d";
 
             if (Session["UserID"] == null)
             {
@@ -225,8 +225,8 @@ namespace BI_TICKETING_SYSTEM
                 rptNotifications.DataBind();
                 pnlNoNotifs.Visible = true;
 
-                btnClearNotifications.Enabled = false;
-                btnClearNotifications.Style["color"] = "#6c757d";
+                btnMarkAsRead.Enabled = false;
+                btnMarkAsRead.Style["color"] = "#6c757d";
 
                 return;
             }
@@ -268,16 +268,16 @@ namespace BI_TICKETING_SYSTEM
 
                     if (dt.Rows.Count > 0)
                     {
-                        btnClearNotifications.Enabled = true;
-                        btnClearNotifications.Style["color"] = "#007bff";
+                        btnMarkAsRead.Enabled = true;
+                        btnMarkAsRead.Style["color"] = "#007bff";
                         rptNotifications.DataSource = dt;
                         rptNotifications.DataBind();
                         pnlNoNotifs.Visible = false;
                     }
                     else
                     {
-                        btnClearNotifications.Enabled = false;
-                        btnClearNotifications.Style["color"] = "#6c757d";
+                        btnMarkAsRead.Enabled = false;
+                        btnMarkAsRead.Style["color"] = "#6c757d";
                         rptNotifications.DataSource = null;
                         rptNotifications.DataBind();
                         pnlNoNotifs.Visible = true;
@@ -286,7 +286,7 @@ namespace BI_TICKETING_SYSTEM
             }
         }
 
-        protected void btnClearNotifications_Click(object sender, EventArgs e)
+        protected void btnMarkAsRead_Click(object sender, EventArgs e)
         {
             if (Session["UserID"] == null)
                 return;
@@ -298,7 +298,8 @@ namespace BI_TICKETING_SYSTEM
                 conn.Open();
 
                 string sql = @"
-            DELETE FROM BI_OJT.NOTIFICATIONS
+            UPDATE BI_OJT.NOTIFICATIONS
+            SET IS_READ = 1
             WHERE USER_ID = :userId";
 
                 using (OracleCommand cmd = new OracleCommand(sql, conn))
