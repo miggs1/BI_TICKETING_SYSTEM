@@ -1,9 +1,11 @@
-﻿using System;
-using System.Data;
-using System.Web.UI.WebControls;
+﻿using BI_TICKETING_SYSTEM.Helpers;
 using Oracle.ManagedDataAccess.Client;
-using BI_TICKETING_SYSTEM.Helpers;
+using System;
+using System.Collections.Generic;
+using System.Data;
 using System.Web;
+using System.Web.UI.WebControls;
+using System.Linq;
 
 namespace BI_TICKETING_SYSTEM
 {
@@ -52,6 +54,7 @@ namespace BI_TICKETING_SYSTEM
                         pnlSupportMenu.Visible = false;
                         break;
                 }
+                CheckDueDateNotifications();
                 LoadNotifications();
             }
         }
@@ -68,6 +71,146 @@ namespace BI_TICKETING_SYSTEM
 
             Response.Redirect("~/Login.aspx", false);
             Context.ApplicationInstance.CompleteRequest();
+        }
+        private void CheckDueDateNotifications()
+        {
+            using (OracleConnection conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+
+                string sql = @"
+            SELECT 
+                TICKET_ID,
+                TICKET_NUMBER,
+                CREATED_BY_USER_ID,
+                ASSIGNED_TO_USER_ID,
+                DUE_DATE,
+                STATUS,
+                NVL(DUE_SOON_NOTIFIED, 0) AS DUE_SOON_NOTIFIED,
+                NVL(OVERDUE_NOTIFIED, 0) AS OVERDUE_NOTIFIED
+            FROM BI_OJT.TICKETS
+            WHERE DUE_DATE IS NOT NULL
+              AND LOWER(STATUS) NOT IN ('resolved', 'closed')";
+
+                using (OracleCommand cmd = new OracleCommand(sql, conn))
+                {
+                    cmd.BindByName = true;
+
+                    using (OracleDataReader dr = cmd.ExecuteReader())
+                    {
+                        while (dr.Read())
+                        {
+                            int ticketId = Convert.ToInt32(dr["TICKET_ID"]);
+                            string ticketNumber = dr["TICKET_NUMBER"].ToString();
+
+                            int createdByUserId = dr["CREATED_BY_USER_ID"] == DBNull.Value
+                                ? 0
+                                : Convert.ToInt32(dr["CREATED_BY_USER_ID"]);
+
+                            int assignedToUserId = dr["ASSIGNED_TO_USER_ID"] == DBNull.Value
+                                ? 0
+                                : Convert.ToInt32(dr["ASSIGNED_TO_USER_ID"]);
+
+                            DateTime dueDate = Convert.ToDateTime(dr["DUE_DATE"]);
+                            int dueSoonNotified = Convert.ToInt32(dr["DUE_SOON_NOTIFIED"]);
+                            int overdueNotified = Convert.ToInt32(dr["OVERDUE_NOTIFIED"]);
+
+                            TimeSpan remaining = dueDate - DateTime.Now;
+
+                            List<int> recipients = new List<int>();
+
+                            if (createdByUserId > 0)
+                                recipients.Add(createdByUserId);
+
+                            if (assignedToUserId > 0)
+                                recipients.Add(assignedToUserId);
+
+                            recipients.AddRange(GetActiveUserIdsByRole("admin", conn));
+
+                            recipients = recipients
+                                .Where(id => id > 0)
+                                .Distinct()
+                                .ToList();
+
+                            if (remaining.TotalSeconds < 0 && overdueNotified == 0)
+                            {
+                                foreach (int userId in recipients)
+                                {
+                                    NotificationHelper.SendNotification(
+                                        userId,
+                                        "Ticket Overdue",
+                                        $"Ticket {ticketNumber} is overdue. Due date was {dueDate:MMM dd, yyyy hh:mm tt}.",
+                                        "~/Pages/Tickets.aspx",
+                                        ticketId
+                                    );
+                                }
+
+                                MarkTicketNotificationFlag(conn, ticketId, "OVERDUE_NOTIFIED");
+                            }
+                            else if (remaining.TotalHours <= 24 && remaining.TotalSeconds > 0 && dueSoonNotified == 0)
+                            {
+                                foreach (int userId in recipients)
+                                {
+                                    NotificationHelper.SendNotification(
+                                        userId,
+                                        "Due Date Approaching",
+                                        $"Ticket {ticketNumber} is due on {dueDate:MMM dd, yyyy hh:mm tt}.",
+                                        "~/Pages/Tickets.aspx",
+                                        ticketId
+                                    );
+                                }
+
+                                MarkTicketNotificationFlag(conn, ticketId, "DUE_SOON_NOTIFIED");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private List<int> GetActiveUserIdsByRole(string role, OracleConnection conn)
+        {
+            List<int> ids = new List<int>();
+
+            string sql = @"
+        SELECT USER_ID
+        FROM BI_OJT.USERS
+        WHERE LOWER(ROLE) = :role
+          AND LOWER(STATUS) = 'active'";
+
+            using (OracleCommand cmd = new OracleCommand(sql, conn))
+            {
+                cmd.BindByName = true;
+                cmd.Parameters.Add("role", OracleDbType.Varchar2).Value = role.ToLower();
+
+                using (OracleDataReader dr = cmd.ExecuteReader())
+                {
+                    while (dr.Read())
+                    {
+                        ids.Add(Convert.ToInt32(dr["USER_ID"]));
+                    }
+                }
+            }
+
+            return ids;
+        }
+
+        private void MarkTicketNotificationFlag(OracleConnection conn, int ticketId, string flagColumn)
+        {
+            if (flagColumn != "DUE_SOON_NOTIFIED" && flagColumn != "OVERDUE_NOTIFIED")
+                return;
+
+            string sql = $@"
+        UPDATE BI_OJT.TICKETS
+        SET {flagColumn} = 1
+        WHERE TICKET_ID = :ticketId";
+
+            using (OracleCommand cmd = new OracleCommand(sql, conn))
+            {
+                cmd.BindByName = true;
+                cmd.Parameters.Add("ticketId", OracleDbType.Int32).Value = ticketId;
+                cmd.ExecuteNonQuery();
+            }
         }
         private void LoadNotifications()
         {
