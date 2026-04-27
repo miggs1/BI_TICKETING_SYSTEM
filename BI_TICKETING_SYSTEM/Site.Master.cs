@@ -214,6 +214,9 @@ namespace BI_TICKETING_SYSTEM
         }
         private void LoadNotifications()
         {
+            btnClearNotifications.Enabled = false;
+            btnClearNotifications.Style["color"] = "#6c757d";
+
             if (Session["UserID"] == null)
             {
                 lblNotifCount.Text = "";
@@ -221,6 +224,10 @@ namespace BI_TICKETING_SYSTEM
                 rptNotifications.DataSource = null;
                 rptNotifications.DataBind();
                 pnlNoNotifs.Visible = true;
+
+                btnClearNotifications.Enabled = false;
+                btnClearNotifications.Style["color"] = "#6c757d";
+
                 return;
             }
 
@@ -261,18 +268,48 @@ namespace BI_TICKETING_SYSTEM
 
                     if (dt.Rows.Count > 0)
                     {
+                        btnClearNotifications.Enabled = true;
+                        btnClearNotifications.Style["color"] = "#007bff";
                         rptNotifications.DataSource = dt;
                         rptNotifications.DataBind();
                         pnlNoNotifs.Visible = false;
                     }
                     else
                     {
+                        btnClearNotifications.Enabled = false;
+                        btnClearNotifications.Style["color"] = "#6c757d";
                         rptNotifications.DataSource = null;
                         rptNotifications.DataBind();
                         pnlNoNotifs.Visible = true;
                     }
                 }
             }
+        }
+
+        protected void btnClearNotifications_Click(object sender, EventArgs e)
+        {
+            if (Session["UserID"] == null)
+                return;
+
+            int userId = Convert.ToInt32(Session["UserID"]);
+
+            using (OracleConnection conn = DatabaseHelper.GetConnection())
+            {
+                conn.Open();
+
+                string sql = @"
+            DELETE FROM BI_OJT.NOTIFICATIONS
+            WHERE USER_ID = :userId";
+
+                using (OracleCommand cmd = new OracleCommand(sql, conn))
+                {
+                    cmd.BindByName = true;
+                    cmd.Parameters.Add("userId", OracleDbType.Int32).Value = userId;
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
+            LoadNotifications();
         }
         protected void rptNotifications_ItemCommand(object source, RepeaterCommandEventArgs e)
         {
