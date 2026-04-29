@@ -486,6 +486,8 @@
                 timer: 2500,
                 toast: true
             });
+            document.getElementById('<%= hfSwalMessage.ClientID %>').value = '';
+            document.getElementById('<%= hfSwalType.ClientID %>').value = '';
         }
 
         var modal = $('#<%= hfShowModal.ClientID %>').val();
@@ -628,5 +630,5 @@
         if (parts.length === 3) return parts[1] + '/' + parts[2] + '/' + parts[0];
         return dateStr;
     }
-    </script>
+</script>
 </asp:Content>
