@@ -646,6 +646,8 @@
                 timer: 2500,
                 toast: true
             });
+            document.getElementById('<%= hfSwalMessage.ClientID %>').value = '';
+            document.getElementById('<%= hfSwalType.ClientID %>').value = '';
         }
         $('#<%= ddlCreatePriority.ClientID %>').on('change', function ()
         {

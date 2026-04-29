@@ -514,6 +514,8 @@ Inherits="BI_TICKETING_SYSTEM.Pages.Users" %>
                 timer: 2500,
                 toast: true
             });
+            document.getElementById('<%= hfSwalMessage.ClientID %>').value = '';
+            document.getElementById('<%= hfSwalType.ClientID %>').value = '';
         }
 
         var modal = document.getElementById('<%= hfShowModal.ClientID %>').value;
