@@ -74,7 +74,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                             break;
 
                         case "REMARK":
-                            query += " AND A.ACTION = 'ADD_REMARK'";
+                            query += " AND A.ACTION IN ('ADD_REMARK', 'ADD+REMARK')";
                             break;
 
                         case "ALL_TICKET":
@@ -148,6 +148,7 @@ namespace BI_TICKETING_SYSTEM.Pages
             foreach (DataRow row in dtRaw.Rows)
             {
                 string action = Convert.ToString(row["ACTION"]);
+                string normalizedAction = action.Replace("+", "_");
                 string tableName = Convert.ToString(row["TABLE_NAME"]);
                 string oldJson = Convert.ToString(row["OLD_VALUE"]);
                 string newJson = Convert.ToString(row["NEW_VALUE"]);
@@ -285,14 +286,18 @@ namespace BI_TICKETING_SYSTEM.Pages
                         }
 
                         // REMARK ADDED
-                        if (action == "ADD_REMARK")
+                        if (normalizedAction == "ADD_REMARK")
                         {
                             string remarkSnippet = newObj?["REMARK_TEXT"]?.ToString();
 
-                            if (remarkSnippet?.Length > 40)
+                            if (string.IsNullOrWhiteSpace(remarkSnippet))
+                                remarkSnippet = "No remark text";
+
+                            if (remarkSnippet.Length > 40)
                                 remarkSnippet = remarkSnippet.Substring(0, 37) + "...";
 
                             AddLogEntry(dtDisplay, row, $"Ticket {ticketNumber}: Remark added - \"{remarkSnippet}\"");
+                            splitOccurred = true;
                         }
 
                         // FALLBACK 
@@ -318,7 +323,7 @@ namespace BI_TICKETING_SYSTEM.Pages
 
 
                                 default:
-                                    string cleanAction = action.Replace("_", " ");
+                                    string cleanAction = normalizedAction.Replace("_", " ");
                                     AddLogEntry(dtDisplay, row,
                                         $"{cleanAction}: Ticket {ticketNumber}");
                                     break;
