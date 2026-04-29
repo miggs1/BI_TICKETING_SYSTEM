@@ -951,7 +951,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                     headerTable.AddCell(textCell);
 
                     // ===== RIGHT IMAGE (PH FLAG)
-                    string flagPath = Server.MapPath("~/Images/ph-flag.png");
+                    string flagPath = Server.MapPath("~/Images/ph-flag-report.png");
                     if (File.Exists(flagPath))
                     {
                         Image flag = Image.GetInstance(flagPath);
@@ -1063,7 +1063,7 @@ namespace BI_TICKETING_SYSTEM.Pages
                 // ===== FIX IMAGE PATH 
                 string baseUrl = Request.Url.GetLeftPart(UriPartial.Authority);
                 string sealUrl = baseUrl + ResolveUrl("~/Images/bi-seal.png");
-                string flagUrl = baseUrl + ResolveUrl("~/Images/ph-flag.png");
+                string flagUrl = baseUrl + ResolveUrl("~/Images/ph-flag-report.png");
 
                 // ===== HEADER TABLE (SEAL | TITLE | FLAG)
                 hw.Write(@"
